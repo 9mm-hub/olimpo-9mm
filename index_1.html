@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Olimpo 9mm Jogo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@500;700&display=swap">
+<style>
+  /* Layout: tela cheia de jogo; canvas ocupa tudo, telas de início/fim sobrepostas no centro. */
+  :root {
+    --sun: #F2C230;
+    --sea: #1E4A8A;
+    --ink: #142F58;
+    --marble: #F6EEDC;
+    --alarm: #C8452B;
+    --display: "Cinzel", "Trajan Pro", Georgia, serif;
+    --ui: "Inter", system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+  }
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+  @supports (height: 100dvh) { .game { height: 100dvh; } }
+  [hidden] { display: none !important; }
+  body { background: var(--sun); color: var(--ink); font-family: var(--ui); overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  .game { position: relative; height: 100%; width: 100%; --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+  .overlay {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px;
+    background: rgba(242, 194, 48, 0.82);
+    overflow-y: auto;
+  }
+  .card {
+    background: var(--marble); border: 3px solid var(--sea); outline: 1px solid var(--sea); outline-offset: 6px;
+    width: min(26rem, 100%); box-sizing: border-box; padding: 28px 24px; text-align: center;
+    display: flex; flex-direction: column; gap: 14px; align-items: center;
+  }
+  .eyebrow { font-family: var(--display); font-weight: 600; letter-spacing: 0.24em; font-size: 0.78rem; color: var(--sea); margin: 0; text-transform: uppercase; }
+  h1 { font-family: var(--display); font-weight: 800; color: var(--sea); font-size: clamp(2rem, 9vw, 2.8rem); line-height: 1; margin: 0; letter-spacing: 0.04em; }
+  h2 { font-family: var(--display); font-weight: 800; color: var(--alarm); font-size: 1.35rem; margin: 0; letter-spacing: 0.06em; }
+  .rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; text-align: left; font-size: 0.95rem; line-height: 1.4; }
+  .rules li { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: center; }
+  .chip { font-family: var(--ui); font-weight: 700; font-size: 0.7rem; letter-spacing: 0.06em; text-align: center; padding: 6px 0; border: 2px solid var(--sea); }
+  .chip.job { background: #fffaf0; color: var(--sea); }
+  .chip.ref { background: var(--sea); color: var(--sun); }
+  .chip.life { background: var(--sun); color: var(--sea); }
+  .big { font-family: var(--display); font-weight: 800; font-size: 3.2rem; color: var(--sea); line-height: 1; margin: 0; font-variant-numeric: tabular-nums; }
+  .muted { margin: 0; font-size: 0.95rem; color: var(--ink); }
+  button.play {
+    font-family: var(--ui); font-weight: 700; font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase;
+    background: var(--sea); color: var(--sun); border: 0; padding: 14px 28px; cursor: pointer; margin-top: 4px;
+  }
+  button.play:hover { background: var(--ink); }
+  @media (max-width: 480px), (max-height: 640px) {
+    .card { padding: 20px 16px; gap: 10px; outline-offset: 4px; }
+    .rules { font-size: 0.88rem; gap: 6px; }
+    .muted { font-size: 0.88rem; }
+    .big { font-size: 2.6rem; }
+    button.play { width: 100%; padding: 16px; }
+  }
+  button.play:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+</style>
+</head>
+<body>
+
+<div class="game" id="game">
+  <canvas id="cv" aria-label="Área do jogo: deslize para cortar os jobs"></canvas>
+
+  <div class="overlay" id="start">
+    <div class="card">
+      <p class="eyebrow">Fase 1 · A Fúria de Zeus</p>
+      <h1>OLIMPO 9MM</h1>
+      <ul class="rules">
+        <li><span class="chip job">JOB</span><span>Deslize o dedo ou o mouse para cortar os jobs.</span></li>
+        <li><span class="chip ref">REFAÇÃO</span><span>Não corte a refação: ela tira uma vida.</span></li>
+        <li><span class="chip life">3 VIDAS</span><span>Cada job que cai sem ser cortado também tira uma vida.</span></li>
+      </ul>
+      <p class="muted">Corte vários de uma vez para fazer combo. E cuidado com a Fúria de Zeus.</p>
+      <button class="play" id="btnStart" type="button">Jogar</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="end" hidden>
+    <div class="card">
+      <p class="eyebrow">Fim de jogo</p>
+      <h2 id="endTitle">Os jobs venceram</h2>
+      <p class="big" id="endScore">0</p>
+      <p class="muted" id="endJobs">Você eliminou 0 jobs.</p>
+      <p class="muted" id="endBest"></p>
+      <button class="play" id="btnAgain" type="button">Jogar de novo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const C = { sun: "#F2C230", sea: "#1E4A8A", ink: "#142F58", paper: "#FFFAF0", marble: "#F6EEDC", alarm: "#C8452B" };
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const startEl = document.getElementById("start");
+  const endEl = document.getElementById("end");
+  let W = 0, H = 0, S = 1, dpr = 1, insetTop = 0, insetBottom = 0;
+  const touch = matchMedia("(pointer: coarse)").matches;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    S = Math.max(0.8, Math.min(1.25, Math.min(W / 430, H / 720)));
+    const cs = getComputedStyle(document.getElementById("game"));
+    insetTop = parseFloat(cs.getPropertyValue("--sat")) || 0;
+    insetBottom = parseFloat(cs.getPropertyValue("--sab")) || 0;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---- estado ----
+  let objs = [], halves = [], parts = [], floats = [], trail = [];
+  let score = 0, jobs = 0, lives = 3, t = 0, spawnT = 0, running = false, last = 0;
+  let furyT = 0, furyActive = 0, furyQueue = 0, furyBanner = 0, flash = 0, flashColor = C.paper, shake = 0;
+  let down = false, stroke = { hits: 0, t: 0 }, best = 0;
+  try { best = Number(localStorage.getItem("olimpo9mm-best")) || 0; } catch (e) {}
+
+  const R = () => (touch ? 54 : 46) * S;            // raio de acerto
+  const G = () => 1050 * S;          // gravidade
+
+  function spawn(kind) {
+    const x = W * (0.18 + Math.random() * 0.64);
+    const peak = insetTop + H * (0.16 + Math.random() * 0.36);
+    const vy = -Math.sqrt(2 * G() * (H + R() - peak));
+    const vx = (W / 2 - x) * (0.2 + Math.random() * 0.4) / 1.4 + (Math.random() - 0.5) * Math.min(80 * S, W * 0.12);
+    objs.push({ kind, x, y: H + R(), vx, vy, a: (Math.random() - 0.5) * 0.6, va: (Math.random() - 0.5) * 3, cut: false, up: true });
+  }
+
+  function difficulty() {
+    const k = Math.min(1, t / 120);
+    return {
+      interval: 1.25 - 0.75 * k,
+      batch: 1 + Math.floor(Math.random() * (1 + 3 * k)),
+      refChance: 0.1 + 0.14 * k
+    };
+  }
+
+  function reset() {
+    objs = []; halves = []; parts = []; floats = []; trail = [];
+    score = 0; jobs = 0; lives = 3; t = 0; spawnT = 0.6; furyT = 22; furyActive = 0; furyQueue = 0; furyBanner = 0; flash = 0; shake = 0;
+  }
+
+  function start() {
+    reset();
+    startEl.hidden = true; endEl.hidden = true;
+    running = true; last = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  function gameOver() {
+    running = false;
+    const isBest = score > best;
+    if (isBest) { best = score; try { localStorage.setItem("olimpo9mm-best", String(best)); } catch (e) {} }
+    document.getElementById("endTitle").textContent = isBest && score > 0 ? "Novo recorde divino!" : "Os jobs venceram";
+    document.getElementById("endScore").textContent = score;
+    document.getElementById("endJobs").textContent = "Você eliminou " + jobs + (jobs === 1 ? " job." : " jobs.");
+    document.getElementById("endBest").textContent = "Seu recorde: " + best + " pontos";
+    endEl.hidden = false;
+    document.getElementById("btnAgain").focus();
+  }
+
+  function loseLife(x, y) {
+    if (running !== true) return;
+    lives -= 1; shake = 0.35; flash = 0.35; flashColor = C.alarm;
+    if (lives <= 0) { lives = 0; setTimeout(gameOver, 450); running = "ending"; }
+  }
+
+  // ---- corte ----
+  function segHits(o, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1;
+    let u = ((o.x - ax) * dx + (o.y - ay) * dy) / L; u = Math.max(0, Math.min(1, u));
+    const px = ax + u * dx - o.x, py = ay + u * dy - o.y;
+    return px * px + py * py < R() * R();
+  }
+
+  function slice(o, ang) {
+    o.cut = true;
+    const nx = Math.cos(ang + Math.PI / 2), ny = Math.sin(ang + Math.PI / 2);
+    for (const side of [-1, 1]) {
+      halves.push({ kind: o.kind, side, x: o.x, y: o.y, vx: o.vx * 0.5 + side * nx * 160 * S, vy: Math.min(o.vy, 0) * 0.4 + side * ny * 160 * S - 120 * S, a: o.a, va: o.va + side * 4, life: 1.6, cutAng: ang - o.a });
+    }
+    const n = o.kind === "job" ? 14 : 22;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = (120 + Math.random() * 320) * S;
+      parts.push({ x: o.x, y: o.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120 * S, life: 0.8 + Math.random() * 0.5, c: o.kind === "job" ? (Math.random() < 0.5 ? C.paper : C.sea) : (Math.random() < 0.5 ? C.alarm : C.sun), r: (2 + Math.random() * 4) * S });
+    }
+    if (o.kind === "job") {
+      jobs += 1; score += 10; stroke.hits += 1; stroke.t = 0.35;
+      floats.push({ x: o.x, y: o.y - 20 * S, txt: "+10", c: C.sea, life: 0.9 });
+    } else {
+      floats.push({ x: o.x, y: o.y - 20 * S, txt: "REFAÇÃO!", c: C.alarm, life: 1.1, big: true });
+      loseLife(o.x, o.y);
+    }
+  }
+
+  function endStroke() {
+    if (stroke.hits >= 3) {
+      const bonus = stroke.hits * 5;
+      score += bonus;
+      floats.push({ x: W / 2, y: H * 0.32, txt: "COMBO x" + stroke.hits + "  +" + bonus, c: C.ink, life: 1.2, big: true });
+    }
+    stroke.hits = 0;
+  }
+
+  function pos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  cv.addEventListener("pointerdown", (e) => { down = true; trail = [{ ...pos(e), t: performance.now() }]; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", (e) => {
+    const p = pos(e), now = performance.now();
+    if (!down) return;
+    const prev = trail[trail.length - 1];
+    trail.push({ ...p, t: now });
+    if (!prev || running !== true) return;
+    const dist = Math.hypot(p.x - prev.x, p.y - prev.y);
+    const ang = Math.atan2(p.y - prev.y, p.x - prev.x);
+    for (const o of objs) if (!o.cut && segHits(o, prev.x, prev.y, p.x, p.y)) slice(o, ang);
+  });
+  const up = () => { down = false; endStroke(); };
+  cv.addEventListener("pointerup", up);
+  cv.addEventListener("pointercancel", up);
+  cv.addEventListener("pointerleave", () => { if (down) up(); });
+
+  // ---- desenho ----
+  function paper(kind, w, h) {
+    const job = kind === "job";
+    ctx.fillStyle = job ? C.paper : C.sea;
+    ctx.strokeStyle = job ? C.sea : C.ink;
+    ctx.lineWidth = 3 * S;
+    const f = 16 * S;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 2); ctx.lineTo(w / 2 - f, -h / 2); ctx.lineTo(w / 2, -h / 2 + f);
+    ctx.lineTo(w / 2, h / 2); ctx.lineTo(-w / 2, h / 2); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w / 2 - f, -h / 2); ctx.lineTo(w / 2 - f, -h / 2 + f); ctx.lineTo(w / 2, -h / 2 + f); ctx.stroke();
+    ctx.fillStyle = job ? C.sea : C.sun;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (job) {
+      ctx.font = `800 ${26 * S}px Cinzel, Georgia, serif`;
+      ctx.fillText("JOB", 0, -8 * S);
+      ctx.fillStyle = "rgba(30,74,138,0.35)";
+      for (let i = 0; i < 3; i++) ctx.fillRect(-w / 2 + 12 * S, 12 * S + i * 9 * S, (w - 24 * S) * (i === 2 ? 0.6 : 1), 3 * S);
+    } else {
+      ctx.font = `800 ${13.5 * S}px Inter, system-ui, sans-serif`;
+      ctx.fillText("REFAÇÃO", 0, -2 * S);
+      ctx.font = `800 ${22 * S}px Inter, system-ui, sans-serif`;
+      ctx.fillText("!", 0, 22 * S);
+    }
+  }
+  const PW = () => 82 * S, PH = () => 100 * S;
+
+  function bolt(x, y, s, fill) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.beginPath(); ctx.moveTo(4, -14); ctx.lineTo(-7, 2); ctx.lineTo(0, 2); ctx.lineTo(-4, 14); ctx.lineTo(8, -3); ctx.lineTo(1, -3); ctx.lineTo(4, -14); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = C.sea; ctx.stroke(); ctx.restore();
+  }
+
+  function meander(y, flip) {
+    const s = 22 * S;
+    ctx.save(); ctx.strokeStyle = C.sea; ctx.lineWidth = 3 * S; ctx.lineCap = "square";
+    ctx.translate(0, y); if (flip) ctx.scale(1, -1);
+    ctx.beginPath(); ctx.moveTo(0, 1.5 * S); ctx.lineTo(W, 1.5 * S); ctx.moveTo(0, s - 1.5 * S); ctx.lineTo(W, s - 1.5 * S);
+    for (let x = 0; x < W + s; x += s) {
+      ctx.moveTo(x + 0.15 * s, s - 1.5 * S); ctx.lineTo(x + 0.15 * s, 0.25 * s); ctx.lineTo(x + 0.75 * s, 0.25 * s); ctx.lineTo(x + 0.75 * s, 0.75 * s); ctx.lineTo(x + 0.4 * s, 0.75 * s); ctx.lineTo(x + 0.4 * s, 0.5 * s); ctx.lineTo(x + 0.55 * s, 0.5 * s);
+    }
+    ctx.stroke(); ctx.restore();
+  }
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = C.sun; ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random() - 0.5) * 14 * S * shake, (Math.random() - 0.5) * 14 * S * shake);
+
+    // fundo: inscrição discreta
+    ctx.fillStyle = "rgba(30,74,138,0.07)"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `800 ${Math.min(W * 0.16, 120)}px Cinzel, Georgia, serif`;
+    ctx.fillText("OLIMPO", W / 2, H * 0.55);
+
+    meander(insetTop, false); meander(H - insetBottom, true);
+
+    for (const o of objs) { ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(o.a); paper(o.kind, PW(), PH()); ctx.restore(); }
+    for (const h of halves) {
+      ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, h.life)); ctx.translate(h.x, h.y); ctx.rotate(h.a);
+      ctx.save(); ctx.rotate(h.cutAng); ctx.beginPath(); ctx.rect(-200 * S, h.side < 0 ? -200 * S : 0, 400 * S, 200 * S); ctx.restore(); ctx.clip();
+      paper(h.kind, PW(), PH()); ctx.restore();
+    }
+    for (const p of parts) { ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.4)); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2); }
+    ctx.globalAlpha = 1;
+
+    // rastro do corte: um raio
+    const now = performance.now();
+    trail = trail.filter((p) => now - p.t < 160);
+    if (trail.length > 1) {
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (const [wdt, col] of [[14 * S, "rgba(255,250,225,0.55)"], [5 * S, "#FFFFFF"]]) {
+        ctx.beginPath(); ctx.moveTo(trail[0].x, trail[0].y);
+        for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x + (i % 2 ? 2 : -2) * S, trail[i].y);
+        ctx.strokeStyle = col; ctx.lineWidth = wdt; ctx.stroke();
+      }
+    }
+
+    for (const f of floats) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.6));
+      ctx.fillStyle = f.c; ctx.font = `800 ${(f.big ? 26 : 20) * S}px Cinzel, Georgia, serif`;
+      ctx.fillText(f.txt, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // HUD
+    const top = insetTop + 22 * S + 14 * S;
+    ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillStyle = C.sea;
+    ctx.font = `800 ${34 * S}px Cinzel, Georgia, serif`;
+    ctx.fillText(String(score), 18 * S, top);
+    ctx.font = `700 ${11 * S}px Inter, system-ui, sans-serif`;
+    ctx.fillText("PONTOS", 20 * S, top + 40 * S);
+    for (let i = 0; i < 3; i++) bolt(W - (24 + i * 30) * S, top + 18 * S, 1.25 * S, i < lives ? C.sea : "rgba(30,74,138,0.15)");
+    ctx.textAlign = "right"; ctx.fillStyle = C.sea; ctx.font = `700 ${11 * S}px Inter, system-ui, sans-serif`;
+    ctx.fillText("VIDAS", W - 14 * S, top + 40 * S);
+
+    if (furyBanner > 0) {
+      ctx.globalAlpha = Math.min(1, furyBanner * 2);
+      ctx.fillStyle = C.sea; ctx.fillRect(0, H * 0.42 - 34 * S, W, 68 * S);
+      ctx.fillStyle = C.sun; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.min(34 * S, W / 11)}px Cinzel, Georgia, serif`;
+      ctx.fillText("A FÚRIA DE ZEUS!", W / 2, H * 0.42);
+      ctx.globalAlpha = 1;
+    }
+    if (flash > 0) { ctx.globalAlpha = Math.min(0.55, flash * 1.4); ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
+
+  // ---- ciclo ----
+  function update(dt) {
+    t += dt;
+    if (running === true) {
+      spawnT -= dt;
+      if (spawnT <= 0 && furyActive <= 0) {
+        const d = difficulty();
+        for (let i = 0; i < d.batch; i++) spawn(Math.random() < d.refChance ? "ref" : "job");
+        spawnT = d.interval + Math.random() * 0.35;
+      }
+      furyT -= dt;
+      if (furyT <= 0) {
+        furyActive = 2.6; furyQueue = 7 + Math.floor(Math.min(6, t / 25)); furyBanner = 1.4; flash = 0.45; flashColor = C.paper; shake = 0.25;
+        furyT = 24;
+      }
+      if (furyActive > 0) {
+        furyActive -= dt;
+        if (furyQueue > 0 && Math.random() < dt * 9) { spawn(Math.random() < 0.12 ? "ref" : "job"); furyQueue--; }
+      }
+    }
+    if (stroke.t > 0) { stroke.t -= dt; if (stroke.t <= 0 && !down) endStroke(); }
+
+    const g = G();
+    for (const o of objs) {
+      o.vy += g * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.a += o.va * dt;
+      if (o.x < R() || o.x > W - R()) o.vx *= -0.6, o.x = Math.max(R(), Math.min(W - R(), o.x));
+      if (o.y > H + R() * 1.6 && o.vy > 0 && !o.cut) {
+        o.gone = true;
+        if (o.kind === "job" && running === true) { floats.push({ x: o.x, y: H - 60 * S, txt: "Job perdido", c: C.alarm, life: 1 }); loseLife(o.x, H); }
+      }
+    }
+    objs = objs.filter((o) => !o.cut && !o.gone);
+    for (const h of halves) { h.vy += g * dt; h.x += h.vx * dt; h.y += h.vy * dt; h.a += h.va * dt; h.life -= dt * 0.7; }
+    halves = halves.filter((h) => h.life > 0 && h.y < H + 200 * S);
+    for (const p of parts) { p.vy += g * 0.6 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+    parts = parts.filter((p) => p.life > 0);
+    for (const f of floats) { f.y -= 40 * S * dt; f.life -= dt; }
+    floats = floats.filter((f) => f.life > 0);
+    if (shake > 0) shake -= dt; if (flash > 0) flash -= dt; if (furyBanner > 0) furyBanner -= dt;
+  }
+
+  function loop(now) {
+    const dt = Math.min(0.033, (now - last) / 1000); last = now;
+    update(dt); draw();
+    if (running) requestAnimationFrame(loop);
+    else draw();
+  }
+
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) last = performance.now(); });
+  document.getElementById("btnStart").addEventListener("click", start);
+  document.getElementById("btnAgain").addEventListener("click", start);
+
+  // tela de fundo parada com alguns jobs para o primeiro quadro
+  function idle() {
+    objs = [{ kind: "job", x: W * 0.25, y: H * 0.3, a: -0.3 }, { kind: "ref", x: W * 0.72, y: H * 0.24, a: 0.25 }, { kind: "job", x: W * 0.78, y: H * 0.72, a: 0.2 }, { kind: "job", x: W * 0.2, y: H * 0.74, a: -0.15 }];
+    draw(); objs = [];
+  }
+  idle();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!running) idle(); });
+  window.addEventListener("resize", () => { if (!running) idle(); });
+})();
+</script>
+
+</body>
+</html>
