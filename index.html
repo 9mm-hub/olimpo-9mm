@@ -583,8 +583,8 @@
       return false;
     }
     return {
-      name: "O Voo de Ícaro", classic: "Flappy Bird", lives: 3, sun: false,
-      how: ["Toque na tela (ou espaço) para o anjinho bater as asas.", "As colunas gregas são sólidas: bateu, quica e perde uma vida.", "Não suba demais (o sol derrete as asas) nem caia no mar.", "Cada coluna vencida vale 10 pontos. São 3 vidas."],
+      name: "O Voo de Ícaro", classic: "Flappy Bird", lives: 3, sun: true,
+      how: ["Toque na tela (ou espaço) para o anjinho bater as asas.", "As colunas gregas são sólidas: bateu, quica e perde uma vida.", "Não suba demais nem caia no mar.", "Cada coluna vencida vale 10 pontos. São 3 vidas."],
       start() { b = { x: W * 0.3, y: HUD + (H - HUD) * 0.45, vy: 0, a: 0 }; cols = []; spawnT = 0.4; started = false; speed = 170 * S; inv = 0; },
       key(k) { if (k === " " || k === "ArrowUp") flap(); },
       pointer(type) { if (type === "down") flap(); },
@@ -610,8 +610,8 @@
         }
         cols = cols.filter((c) => c.x > -CW() - 40);
         if (b.y < HUD + 56 * S && inv <= 0) {
-          if (hurt("As asas derreteram no sol")) return;
-          popText("Quente demais!", b.x, b.y + 40 * S, { c: C.red, font: FP, size: 14 }); b.vy = 300 * S; inv = 1.2;
+          if (hurt("Ícaro voou alto demais")) return;
+          popText("Alto demais!", b.x, b.y + 40 * S, { c: C.red, font: FP, size: 14 }); b.vy = 300 * S; inv = 1.2;
         }
         if (b.y < HUD + 20 * S) { b.y = HUD + 20 * S; b.vy = Math.max(b.vy, 0); }
         const sea = H - insetBottom - 16 * S;
@@ -621,10 +621,6 @@
         }
       },
       draw() {
-        ctx.save(); { const R = Math.min(W * 0.36, 160 * S); ctx.drawImage(getHalfSun(R), W / 2 - R, HUD - 10 * S, R * 2, R); }
-        ctx.strokeStyle = "rgba(156,122,54,0.45)"; ctx.lineWidth = 1; ctx.beginPath();
-        for (let i = 0; i <= 24; i++) { const a = Math.PI * (i / 24), r1 = Math.min(W * 0.36, 160 * S) + 6 * S, r2 = r1 + (i % 2 ? 18 : 34) * S; ctx.moveTo(W / 2 + Math.cos(a) * r1, HUD - 10 * S + Math.sin(a) * r1); ctx.lineTo(W / 2 + Math.cos(a) * r2, HUD - 10 * S + Math.sin(a) * r2); }
-        ctx.stroke(); ctx.restore();
         ctx.strokeStyle = "rgba(43,43,43,0.5)"; ctx.lineWidth = 1.2;
         for (let j = 0; j < 3; j++) { const y = H - insetBottom - 6 * S - j * 7 * S; ctx.beginPath(); for (let x = 0; x <= W; x += 16 * S) { ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 4 * S, y - 4 * S, x + 8 * S, y); } ctx.stroke(); }
         for (const c of cols) { column(c.x, HUD, c.gapY, true); column(c.x, c.gapY + c.gap, H + 2, false); }
@@ -795,7 +791,7 @@
     function hitMe(x, y, rx, ry) { return Math.abs(x - me.x) < rx && Math.abs(y - (me.y - 6 * S)) < ry; }
     return {
       name: "A Batalha de Troia", classic: "Space Invaders", lives: 3, sun: true,
-      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os JOB (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Desvie do que cai da muralha. O cavalo lança duas lanças por vez; pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
+      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os JOB (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Desvie do que cai da muralha. Pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
       start() { wave = 1; wallY = HUD + 40 * S; me = { x: W / 2, y: H - insetBottom - 44 * S }; targetX = me.x; shots = []; bombs = []; drops = []; power = 0; fireT = 0; keys = {}; newWave(); },
       resize() { if (me) { me.y = H - insetBottom - 44 * S; wallY = HUD + 40 * S; } },
       key(k, isDown) { keys[k] = isDown; },
@@ -809,7 +805,7 @@
         if (fireT <= 0) {
           const y = me.y - 40 * S;
           if (power > 0) { shots.push({ x: me.x, y, vx: 0 }, { x: me.x, y, vx: -120 * S }, { x: me.x, y, vx: 120 * S }); }
-          else shots.push({ x: me.x - 6 * S, y, vx: 0 }, { x: me.x + 14 * S, y, vx: 0 });
+          else shots.push({ x: me.x + 10 * S, y, vx: 0 });
           fireT = 0.34;
         }
         for (const s of shots) { s.y -= 620 * S * dt; s.x += s.vx * dt; }
