@@ -733,50 +733,127 @@
 
   // ---------- FASE V · A Batalha de Troia (Space Invaders) ----------
   PHASES.push((() => {
-    let me, shots, bombs, fleet, fdir, fspeed, fireT, wave, targetX, keys;
+    let me, shots, bombs, fleet, fdir, fspeed, fireT, wave, targetX, keys, drops, power, wallY;
+    const HORSE = [
+      "..........#.#...",
+      ".........#####..",
+      ".........##e###.",
+      "........#######.",
+      "........####....",
+      "#......####.....",
+      "##.#########....",
+      ".###########....",
+      "..####hh####....",
+      "..####hh####....",
+      "..#.#....#.#....",
+      "..#.#....#.#....",
+      "pppppppppppppp..",
+      ".o..o....o..o..."
+    ];
+    const SHOE = ["#...#", "#...#", "#...#", ".###."];
     function newWave() {
-      fleet = []; const colsN = W < 520 ? 6 : 8, rowsN = 4, gw = Math.min(46 * S, (W - 40 * S) / (colsN + 1)), gh = 34 * S;
-      const startX = (W - (colsN - 1) * gw) / 2;
-      for (let r = 0; r < rowsN; r++) for (let c = 0; c < colsN; c++) fleet.push({ x: startX + c * gw, y: HUD + 40 * S + r * gh, type: r % 2 ? "alt" : "mail", alive: true });
+      fleet = []; const colsN = W < 520 ? 6 : 8, rowsN = 4, gw = Math.min(48 * S, (W - 40 * S) / (colsN + 1)), gh = 36 * S;
+      const startX = (W - (colsN - 1) * gw) / 2, types = ["urg", "alt", "alt", "mail"];
+      for (let r = 0; r < rowsN; r++) for (let c = 0; c < colsN; c++) {
+        const type = types[r];
+        fleet.push({ x: startX + c * gw, y: wallY + 34 * S + r * gh, type, hp: type === "alt" ? 2 : 1, alive: true, dive: false, ph: Math.random() * 6 });
+      }
       fdir = 1; fspeed = (40 + wave * 14) * S;
     }
     function drawMail(x, y) { const p = 3.4 * S; pix(BMP.env, x - 4 * p, y - 3 * p, p, { "#": C.ink, ".": C.paper2 }); }
-    function drawAlt(x, y) { const w = 34 * S, h = 24 * S; ctx.fillStyle = C.paper2; ctx.fillRect(x - w / 2, y - h / 2, w, h); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - h / 2, w, h); ctx.fillStyle = C.ink; ctx.font = `700 ${10 * S}px ${FP}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("ALT", x, y + 1); }
+    function drawAlt(x, y, hp) {
+      const w = 34 * S, h = 24 * S;
+      ctx.fillStyle = hp > 1 ? C.paper2 : "#EDE6D6"; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = C.ink; ctx.font = `700 ${10 * S}px ${FP}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("ALT", x, y + 1);
+      if (hp < 2) { ctx.beginPath(); ctx.moveTo(x - w / 2 + 3, y - h / 2 + 3); ctx.lineTo(x - 2, y); ctx.lineTo(x + 4, y + h / 2 - 2); ctx.stroke(); }
+    }
+    function drawUrg(x, y) {
+      const w = 44 * S, h = 18 * S;
+      ctx.fillStyle = C.red; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = C.paper2; ctx.font = `700 ${8 * S}px ${FP}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("URGENTE", x, y + 1);
+    }
+    function drawWall() {
+      const top = HUD - 2, h = wallY - top, bw = 26 * S, bh = 11 * S;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, h + 12 * S); ctx.clip();
+      ctx.fillStyle = C.paper2; ctx.fillRect(0, top, W, h);
+      hatch(0, top, W, h, 4 * S, 0.6, "rgba(43,43,43,0.22)", 0.8);
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1;
+      for (let row = 0, y = top + h - bh; y > top; row++, y -= bh) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        for (let x = (row % 2) * bw / 2; x < W; x += bw) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke(); }
+      }
+      // ameias
+      ctx.fillStyle = C.paper2; ctx.lineWidth = 1.5;
+      for (let x = 0; x < W; x += 30 * S) { ctx.fillRect(x + 4 * S, wallY, 16 * S, 10 * S); ctx.strokeRect(x + 4 * S, wallY, 16 * S, 10 * S); }
+      ctx.beginPath(); ctx.moveTo(0, wallY); ctx.lineTo(W, wallY); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = C.ink; ctx.font = `italic 600 ${11 * S}px ${FD}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = C.paper2; ctx.fillRect(W / 2 - 34 * S, top + h / 2 - 8 * S, 68 * S, 16 * S);
+      ctx.strokeRect(W / 2 - 34 * S, top + h / 2 - 8 * S, 68 * S, 16 * S); ctx.fillStyle = C.ink; ctx.fillText("TROIA", W / 2, top + h / 2 + 1);
+    }
+    function hitMe(x, y, rx, ry) { return Math.abs(x - me.x) < rx && Math.abs(y - (me.y - 6 * S)) < ry; }
     return {
       name: "A Batalha de Troia", classic: "Space Invaders", lives: 3, sun: true,
-      how: ["Arraste o dedo (ou use as setas) para mover o templo de Zeus.", "Os raios saem sozinhos: derrube os e-mails e as alterações.", "Desvie do que eles jogam em você.", "Se a frota chegar ao templo, Troia cai."],
-      start() { wave = 1; me = { x: W / 2, y: H - insetBottom - 46 * S }; targetX = me.x; shots = []; bombs = []; fireT = 0; keys = {}; newWave(); },
-      resize() { if (me) me.y = H - insetBottom - 46 * S; },
+      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os ALT (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Desvie do que cai da muralha. Pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
+      start() { wave = 1; wallY = HUD + 40 * S; me = { x: W / 2, y: H - insetBottom - 44 * S }; targetX = me.x; shots = []; bombs = []; drops = []; power = 0; fireT = 0; keys = {}; newWave(); },
+      resize() { if (me) { me.y = H - insetBottom - 44 * S; wallY = HUD + 40 * S; } },
       key(k, isDown) { keys[k] = isDown; },
       pointer(type, x) { if (type === "down" || type === "move") targetX = x; },
       update(dt) {
         if (ending) return;
+        if (power > 0) power -= dt;
         if (keys.ArrowLeft) targetX = me.x - 400 * S * dt * 4; if (keys.ArrowRight) targetX = me.x + 400 * S * dt * 4;
-        const sp = 520 * S * dt; me.x += Math.max(-sp, Math.min(sp, targetX - me.x)); me.x = Math.max(26 * S, Math.min(W - 26 * S, me.x));
-        fireT -= dt; if (fireT <= 0) { shots.push({ x: me.x, y: me.y - 26 * S }); fireT = 0.34; }
-        for (const s of shots) s.y -= 620 * S * dt; shots = shots.filter((s) => s.y > HUD && !s.hit);
+        const sp = 520 * S * dt; me.x += Math.max(-sp, Math.min(sp, targetX - me.x)); me.x = Math.max(34 * S, Math.min(W - 34 * S, me.x));
+        fireT -= dt;
+        if (fireT <= 0) {
+          const y = me.y - 40 * S;
+          if (power > 0) { shots.push({ x: me.x, y, vx: 0 }, { x: me.x, y, vx: -120 * S }, { x: me.x, y, vx: 120 * S }); }
+          else shots.push({ x: me.x + 10 * S, y, vx: 0 });
+          fireT = 0.34;
+        }
+        for (const s of shots) { s.y -= 620 * S * dt; s.x += s.vx * dt; }
+        shots = shots.filter((s) => s.y > wallY && !s.hit);
         const alive = fleet.filter((f) => f.alive);
-        if (!alive.length) { addScore(100); popText("Onda " + wave + " vencida! +100", W / 2, HUD + 80 * S, { font: FD }); wave++; newWave(); return; }
+        if (!alive.length) { addScore(100); popText("Onda " + wave + " vencida! +100", W / 2, wallY + 80 * S, { font: FD }); wave++; newWave(); return; }
+        const formation = alive.filter((f) => !f.dive);
         const speed = fspeed * (1 + (1 - alive.length / fleet.length) * 1.6);
-        let minX = Infinity, maxX = -Infinity, maxY = 0; for (const f of alive) { f.x += fdir * speed * dt; minX = Math.min(minX, f.x); maxX = Math.max(maxX, f.x); maxY = Math.max(maxY, f.y); }
-        if ((fdir > 0 && maxX > W - 24 * S) || (fdir < 0 && minX < 24 * S)) { fdir *= -1; for (const f of alive) f.y += 16 * S; }
-        if (maxY > me.y - 30 * S) { G.lives = 0; shake = 0.4; finish("Troia caiu"); return; }
-        if (Math.random() < dt * (0.9 + wave * 0.35)) { const f = alive[Math.floor(Math.random() * alive.length)]; bombs.push({ x: f.x, y: f.y + 12 * S }); }
-        for (const s of shots) for (const f of alive) if (!s.hit && f.alive && Math.abs(s.x - f.x) < 18 * S && Math.abs(s.y - f.y) < 14 * S) { f.alive = false; s.hit = true; addScore(f.type === "alt" ? 15 : 10, f.x, f.y - 14 * S); burst(f.x, f.y, 8, [C.ink, C.gold, C.paper2]); }
-        for (const bm of bombs) { bm.y += (190 + wave * 15) * S * dt; if (!bm.hit && Math.abs(bm.x - me.x) < 24 * S && Math.abs(bm.y - me.y) < 18 * S) { bm.hit = true; if (!hurt("Troia caiu")) popText("Atingido!", me.x, me.y - 40 * S, { c: C.red, font: FP, size: 14 }); } }
+        let minX = Infinity, maxX = -Infinity, maxY = 0;
+        for (const f of formation) { f.x += fdir * speed * dt; minX = Math.min(minX, f.x); maxX = Math.max(maxX, f.x); maxY = Math.max(maxY, f.y); }
+        if (formation.length && ((fdir > 0 && maxX > W - 26 * S) || (fdir < 0 && minX < 26 * S))) { fdir *= -1; for (const f of formation) f.y += 16 * S; }
+        if (formation.length && maxY > me.y - 46 * S) { G.lives = 0; shake = 0.4; finish("A frota chegou ao cavalo"); return; }
+        // urgentes mergulham
+        const urg = formation.filter((f) => f.type === "urg");
+        if (urg.length && Math.random() < dt * (0.25 + wave * 0.12)) { const f = urg[Math.floor(Math.random() * urg.length)]; f.dive = true; f.bx = f.x; f.t = 0; }
+        for (const f of alive) if (f.dive) {
+          f.t += dt; f.y += (170 + wave * 12) * S * dt; f.x = f.bx + Math.sin(f.t * 5 + f.ph) * 40 * S;
+          if (hitMe(f.x, f.y, 34 * S, 26 * S)) { f.alive = false; burst(f.x, f.y, 10, [C.red, C.ink]); if (hurt("O URGENTE derrubou o cavalo")) return; popText("Urgente!", me.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); }
+          else if (f.y > H + 20 * S) f.alive = false;
+        }
+        // muralha joga refações
+        if (Math.random() < dt * (0.9 + wave * 0.35) && formation.length) { const f = formation[Math.floor(Math.random() * formation.length)]; bombs.push({ x: f.x, y: f.y + 12 * S }); }
+        for (const s of shots) for (const f of alive) if (!s.hit && f.alive && Math.abs(s.x - f.x) < 20 * S && Math.abs(s.y - f.y) < 14 * S) {
+          s.hit = true; f.hp--;
+          if (f.hp <= 0) {
+            f.alive = false; addScore(f.type === "urg" ? 20 : f.type === "alt" ? 15 : 10, f.x, f.y - 14 * S); burst(f.x, f.y, 8, [C.ink, C.gold, C.paper2]);
+            if (Math.random() < 0.07) drops.push({ x: f.x, y: f.y });
+          } else burst(f.x, f.y, 4, [C.ink]);
+        }
+        for (const bm of bombs) { bm.y += (190 + wave * 15) * S * dt; if (!bm.hit && hitMe(bm.x, bm.y, 30 * S, 24 * S)) { bm.hit = true; if (hurt("A muralha venceu")) return; popText("Atingido!", me.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); } }
         bombs = bombs.filter((bm) => bm.y < H && !bm.hit);
+        for (const d of drops) { d.y += 150 * S * dt; if (!d.got && hitMe(d.x, d.y, 34 * S, 28 * S)) { d.got = true; power = 6; popText("Cavalo dourado! Lança tripla", W / 2, me.y - 90 * S, { font: FP, size: 14 }); flash = 0.25; flashCol = C.gold; } }
+        drops = drops.filter((d) => d.y < H && !d.got);
       },
       draw() {
-        for (const f of fleet) if (f.alive) (f.type === "mail" ? drawMail : drawAlt)(f.x, f.y);
+        drawWall();
+        for (const f of fleet) if (f.alive) { if (f.type === "mail") drawMail(f.x, f.y); else if (f.type === "alt") drawAlt(f.x, f.y, f.hp); else drawUrg(f.x, f.y); }
         for (const bm of bombs) pix(BMP.excl, bm.x - 3 * S, bm.y - 9 * S, 3 * S, { "#": C.red });
-        for (const s of shots) pix(BMP.bolt, s.x - 7 * S, s.y - 12 * S, 3 * S, { "#": C.goldDeep });
-        // templo de Zeus
-        const x = me.x, y = me.y, w = 48 * S;
-        ctx.fillStyle = C.paper2; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8;
-        ctx.beginPath(); ctx.moveTo(x - w / 2 - 4 * S, y - 8 * S); ctx.lineTo(x, y - 24 * S); ctx.lineTo(x + w / 2 + 4 * S, y - 8 * S); ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.fillRect(x - w / 2, y - 8 * S, w, 26 * S); ctx.strokeRect(x - w / 2, y - 8 * S, w, 26 * S);
-        for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(x - w / 2 + 8 * S + i * 10.5 * S, y - 4 * S); ctx.lineTo(x - w / 2 + 8 * S + i * 10.5 * S, y + 14 * S); ctx.stroke(); }
-        pix(BMP.bolt, x - 7 * S, y - 46 * S, 3 * S, { "#": C.gold });
+        for (const d of drops) pix(SHOE, d.x - 7.5 * S, d.y - 6 * S, 3 * S, { "#": C.goldDeep });
+        for (const s of shots) { ctx.fillStyle = C.ink; ctx.fillRect(s.x - 1.2 * S, s.y, 2.4 * S, 16 * S); ctx.fillStyle = power > 0 ? C.gold : C.goldDeep; ctx.beginPath(); ctx.moveTo(s.x, s.y - 7 * S); ctx.lineTo(s.x - 4 * S, s.y + 1); ctx.lineTo(s.x + 4 * S, s.y + 1); ctx.closePath(); ctx.fill(); }
+        // Cavalo de Troia
+        const p = 4 * S, gold = power > 0 && Math.floor(performance.now() / 120) % 2 === 0;
+        pix(HORSE, me.x - 8 * p, me.y - 11 * p, p, { "#": gold ? C.gold : C.goldDeep, e: C.paper2, h: C.ink, p: C.ink, o: C.ink });
+        if (power > 0) for (let i = 0; i < 3; i++) { const a = performance.now() / 300 + i * 2.1; pix([".#.", "###", ".#."], me.x + Math.cos(a) * 40 * S, me.y - 20 * S + Math.sin(a) * 20 * S, 2.5 * S, { "#": C.gold }); }
       }
     };
   })());
