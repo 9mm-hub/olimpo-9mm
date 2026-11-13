@@ -765,7 +765,7 @@
       const w = 34 * S, h = 24 * S;
       ctx.fillStyle = hp > 1 ? C.paper2 : "#EDE6D6"; ctx.fillRect(x - w / 2, y - h / 2, w, h);
       ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - h / 2, w, h);
-      ctx.fillStyle = C.ink; ctx.font = `700 ${10 * S}px ${FP}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("ALT", x, y + 1);
+      ctx.fillStyle = C.ink; ctx.font = `700 ${10 * S}px ${FP}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("JOB", x, y + 1);
       if (hp < 2) { ctx.beginPath(); ctx.moveTo(x - w / 2 + 3, y - h / 2 + 3); ctx.lineTo(x - 2, y); ctx.lineTo(x + 4, y + h / 2 - 2); ctx.stroke(); }
     }
     function drawUrg(x, y) {
@@ -795,7 +795,7 @@
     function hitMe(x, y, rx, ry) { return Math.abs(x - me.x) < rx && Math.abs(y - (me.y - 6 * S)) < ry; }
     return {
       name: "A Batalha de Troia", classic: "Space Invaders", lives: 3, sun: true,
-      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os ALT (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Desvie do que cai da muralha. Pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
+      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os JOB (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Desvie do que cai da muralha. O cavalo lança duas lanças por vez; pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
       start() { wave = 1; wallY = HUD + 40 * S; me = { x: W / 2, y: H - insetBottom - 44 * S }; targetX = me.x; shots = []; bombs = []; drops = []; power = 0; fireT = 0; keys = {}; newWave(); },
       resize() { if (me) { me.y = H - insetBottom - 44 * S; wallY = HUD + 40 * S; } },
       key(k, isDown) { keys[k] = isDown; },
@@ -809,7 +809,7 @@
         if (fireT <= 0) {
           const y = me.y - 40 * S;
           if (power > 0) { shots.push({ x: me.x, y, vx: 0 }, { x: me.x, y, vx: -120 * S }, { x: me.x, y, vx: 120 * S }); }
-          else shots.push({ x: me.x + 10 * S, y, vx: 0 });
+          else shots.push({ x: me.x - 6 * S, y, vx: 0 }, { x: me.x + 14 * S, y, vx: 0 });
           fireT = 0.34;
         }
         for (const s of shots) { s.y -= 620 * S * dt; s.x += s.vx * dt; }
