@@ -431,10 +431,10 @@
       o.cut = true;
       const nx = Math.cos(ang + Math.PI / 2), ny = Math.sin(ang + Math.PI / 2);
       for (const side of [-1, 1]) halves.push({ kind: o.kind, side, x: o.x, y: o.y, vx: o.vx * 0.5 + side * nx * 160 * S, vy: Math.min(o.vy, 0) * 0.4 + side * ny * 160 * S - 120 * S, a: o.a, va: o.va + side * 4, life: 1.6, cutAng: ang - o.a });
-      if (o.kind === "job") { burst(o.x, o.y, 12, [C.paper2, C.ink, C.gold]); addScore(10, o.x, o.y - 24 * S); stroke.hits++; stroke.t = 0.35; }
+      if (o.kind === "job") { burst(o.x, o.y, 12, [C.paper2, C.ink, C.gold]); addScore(5, o.x, o.y - 24 * S); stroke.hits++; stroke.t = 0.35; }
       else { burst(o.x, o.y, 20, [C.ink, C.gold]); popText("REFAÇÃO!", o.x, o.y - 24 * S, { c: C.red, font: FP, size: 20 }); hurt("A refação venceu"); }
     }
-    function endStroke() { if (stroke.hits >= 3) { const b = stroke.hits * 3; addScore(b); popText("COMBO x" + stroke.hits + " +" + b, W / 2, HUD + (H - HUD) * 0.25, { font: FP, size: 22 }); } stroke.hits = 0; }
+    function endStroke() { if (stroke.hits >= 3) { const b = stroke.hits * 2; addScore(b); popText("COMBO x" + stroke.hits + " +" + b, W / 2, HUD + (H - HUD) * 0.25, { font: FP, size: 22 }); } stroke.hits = 0; }
     return {
       name: "A Fúria de Zeus", classic: "Fruit Ninja", lives: 3, sun: true,
       how: ["Deslize o dedo (ou arraste o mouse) para cortar os jobs.", "Não corte a REFAÇÃO: ela tira uma vida.", "Job que cai sem ser cortado também tira uma vida.", "Na Fúria de Zeus só chovem jobs, e depois de cada uma tudo fica mais rápido. Corte 3 ou mais de uma vez para fazer combo."],
@@ -517,7 +517,7 @@
     const heads = () => Math.min(3, 1 + Math.floor(eaten / 6));
     return {
       name: "A Fome da Hidra", classic: "Cobrinha", lives: 1, sun: true,
-      how: ["Toque na tela e a Hidra vira para o lado do toque (também dá para deslizar ou usar as setas).", "Coma os briefings dourados para crescer. A cada 6, nasce uma nova cabeça, e todas as cabeças comem.", "De vez em quando aparece um café: pegue antes que ele esfrie e ganhe pontos extras.", "Só tem uma vida: bater na borda ou morder o próprio corpo acaba o jogo."],
+      how: ["Toque na tela e a Hidra vira para o lado do toque (também dá para deslizar ou usar as setas).", "Coma os e-mails para crescer. A cada 6, nasce uma nova cabeça, e todas as cabeças comem.", "De vez em quando aparece um café com um cronômetro: pegue antes do tempo acabar e ganhe +30.", "Só tem uma vida: bater na borda ou morder o próprio corpo acaba o jogo."],
       start() { layout(); const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2); snake = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }]; dir = "right"; nextDir = "right"; stepT = 0; eaten = 0; inv = 0; cafe = null; cafeT = 8; food = null; placeFood(); sw = null; },
       resize() { if (snake) layout(); },
       key(k) { turn({ ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[k]); },
@@ -568,8 +568,15 @@
         for (let j = 1; j < rows; j++) { ctx.moveTo(ox, oy + j * cell + 0.5); ctx.lineTo(ox + cols * cell, oy + j * cell + 0.5); }
         ctx.stroke();
         ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.strokeRect(ox - 3, oy - 3, cols * cell + 6, rows * cell + 6); ctx.lineWidth = 1; ctx.strokeRect(ox - 8, oy - 8, cols * cell + 16, rows * cell + 16);
-        const p = cell / 6; pix(BMP.scroll, ox + food.x * cell, oy + food.y * cell, p, { "#": C.goldDeep, ".": C.gold });
-        if (cafe && !(cafe.life < 1.5 && Math.floor(performance.now() / 120) % 2)) { const q = cell / 7; pix(BMP.cup, ox + cafe.x * cell + 0.5 * q, oy + cafe.y * cell + 0.5 * q, q, { "#": C.ink }); }
+        const p = cell / 8; pix(BMP.env, ox + food.x * cell, oy + food.y * cell + cell * 0.12, p, { "#": C.ink, ".": C.gold });
+        if (cafe) {
+          const q = cell / 7, cx0 = ox + cafe.x * cell, cy0 = oy + cafe.y * cell, frac = Math.max(0, cafe.life / 6);
+          ctx.strokeStyle = cafe.life < 2 ? C.red : C.goldDeep; ctx.lineWidth = 2.5 * S; ctx.beginPath();
+          ctx.arc(cx0 + cell / 2, cy0 + cell / 2, cell * 0.85, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
+          pix(BMP.cup, cx0 + 0.5 * q, cy0 + 0.5 * q, q, { "#": C.ink });
+          ctx.fillStyle = cafe.life < 2 ? C.red : C.ink; ctx.font = `700 ${11 * S}px ${FP}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+          ctx.fillText(Math.ceil(cafe.life) + "s", cx0 + cell / 2, cy0 - cell * 0.35);
+        }
         const blink = inv > 0 && Math.floor(performance.now() / 100) % 2 === 0;
         if (!blink) snake.forEach((s, i) => {
           const x = ox + s.x * cell, y = oy + s.y * cell, ins = i === 0 ? 0 : cell * 0.08;
@@ -696,7 +703,7 @@
         for (const c of cols) {
           column(c.x, HUD, c.gapY, true); column(c.x, c.gapY + c.gap, H + 2, false);
           if (c.job && !c.job.got) {
-            const jx = c.x + c.job.dx, jy = c.job.y + Math.sin(performance.now() / 260 + c.x) * 3 * S, w = 26 * S, h = 30 * S;
+            const jx = c.x + c.job.dx, jy = c.job.y + Math.sin(performance.now() / 600) * 2 * S, w = 26 * S, h = 30 * S;
             ctx.fillStyle = C.paper2; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.fillRect(jx - w / 2, jy - h / 2, w, h); ctx.strokeRect(jx - w / 2, jy - h / 2, w, h);
             ctx.fillStyle = C.ink; ctx.font = `700 ${9 * S}px ${FD}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("JOB", jx, jy - 3 * S);
             ctx.fillStyle = C.gold; ctx.fillRect(jx - w / 2 + 4 * S, jy + 6 * S, w - 8 * S, 2 * S);
@@ -898,14 +905,14 @@
         if (formation.length && maxY > me.y - 46 * S) { G.lives = 0; shake = 0.4; finish("A frota chegou ao cavalo"); return; }
         // urgentes mergulham
         const urg = formation.filter((f) => f.type === "urg");
-        if (urg.length && Math.random() < dt * (0.25 + wave * 0.12)) { const f = urg[Math.floor(Math.random() * urg.length)]; f.dive = true; f.bx = f.x; f.t = 0; }
+        if (urg.length && Math.random() < dt * (0.15 + wave * 0.07)) { const f = urg[Math.floor(Math.random() * urg.length)]; f.dive = true; f.bx = f.x; f.t = 0; }
         for (const f of alive) if (f.dive) {
           f.t += dt; f.y += (170 + wave * 12) * S * dt; f.x = f.bx + Math.sin(f.t * 5 + f.ph) * 40 * S;
           if (hitMe(f.x, f.y, 34 * S, 26 * S)) { f.alive = false; burst(f.x, f.y, 10, [C.red, C.ink]); if (hurt("O URGENTE derrubou o cavalo")) return; popText("Urgente!", me.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); }
           else if (f.y > me.y + 34 * S) { f.alive = false; if (hurt("Um URGENTE passou")) return; popText("Prazo perdido!", f.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); }
         }
         // muralha joga refações
-        if (Math.random() < dt * (0.9 + wave * 0.35) && formation.length) { const f = formation[Math.floor(Math.random() * formation.length)]; bombs.push({ x: f.x, y: f.y + 12 * S }); }
+        if (Math.random() < dt * (0.4 + wave * 0.15) && formation.length) { const f = formation[Math.floor(Math.random() * formation.length)]; bombs.push({ x: f.x, y: f.y + 12 * S }); }
         for (const s of shots) for (const f of alive) if (!s.hit && f.alive && Math.abs(s.x - f.x) < 20 * S && Math.abs(s.y - f.y) < 14 * S) {
           s.hit = true; f.hp--;
           if (f.hp <= 0) {
@@ -913,7 +920,7 @@
             if (Math.random() < 0.07) drops.push({ x: f.x, y: f.y });
           } else burst(f.x, f.y, 4, [C.ink]);
         }
-        for (const bm of bombs) { bm.y += (190 + wave * 15) * S * dt; if (!bm.hit && hitMe(bm.x, bm.y, 30 * S, 24 * S)) { bm.hit = true; if (hurt("A muralha venceu")) return; popText("Atingido!", me.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); } }
+        for (const bm of bombs) { bm.y += (160 + wave * 10) * S * dt; if (!bm.hit && hitMe(bm.x, bm.y, 30 * S, 24 * S)) { bm.hit = true; if (hurt("A muralha venceu")) return; popText("Atingido!", me.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); } }
         bombs = bombs.filter((bm) => bm.y < H && !bm.hit);
         for (const d of drops) { d.y += 150 * S * dt; if (!d.got && hitMe(d.x, d.y, 34 * S, 28 * S)) { d.got = true; power = 6; popText("Cavalo dourado! Lança tripla", W / 2, me.y - 90 * S, { font: FP, size: 14 }); flash = 0.25; flashCol = C.gold; } }
         drops = drops.filter((d) => d.y < H && !d.got);
