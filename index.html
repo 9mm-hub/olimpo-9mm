@@ -88,6 +88,10 @@
   .rank td.n, .rank th.n { text-align: right; font-family: var(--pixel); }
   .rank td.p { width: 2.2em; font-family: var(--display); font-weight: 700; color: var(--gold-deep); }
   .rank tr.me td { background: rgba(201, 164, 92, 0.22); font-weight: 600; }
+  .rtabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+  .rtab { font: 600 0.78rem var(--ui); letter-spacing: 0.04em; padding: 8px 6px; border: 1px solid var(--graphite); background: transparent; color: var(--graphite); cursor: pointer; }
+  .rtab.on { background: var(--graphite); color: var(--paper); }
+  .rstatus:empty { display: none; }
   .rank tr.gap td { text-align: center; color: var(--soft); border-bottom: 0; padding: 2px; }
   .medal { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--gold); margin-left: 6px; vertical-align: 0.05em; }
   .link { background: none; border: 0; color: var(--soft); font: inherit; font-size: 0.82rem; text-decoration: underline; cursor: pointer; padding: 4px; }
@@ -114,7 +118,7 @@
         <p class="err" id="loginErr" role="alert"></p>
         <button class="btn" type="submit">Entrar</button>
       </form>
-      <p class="note">Protótipo: por enquanto, seus pontos ficam só neste aparelho.</p>
+      <p class="note">Seus pontos vão para o ranking geral da 9mm. Use sempre o mesmo e-mail.</p>
     </div>
   </div>
 
@@ -150,10 +154,11 @@
       <p class="score" id="endScore">0</p>
       <p class="note" id="endBest"></p>
       <div>
-        <p class="kicker" style="margin-bottom:6px">Ranking geral</p>
+        <div class="rtabs"><button type="button" class="rtab on" data-tab="ouro">Ranking de Ouro</button><button type="button" class="rtab" data-tab="dedicacao">Dedicação</button></div>
         <table class="rank" id="endRank"></table>
+        <p class="note rstatus" id="endRankStatus"></p>
       </div>
-      <p class="note">Ranking geral = soma do seu melhor resultado em cada fase. Os outros nomes são exemplos.</p>
+      <p class="note rexplain"></p>
       <div class="row2">
         <button class="btn ghost" id="btnAgain" type="button">Jogar de novo</button>
         <button class="btn" id="btnNext" type="button">Próxima fase</button>
@@ -167,8 +172,10 @@
     <div class="sheet">
       <p class="kicker">Os três primeiros ganham prêmio</p>
       <h2 class="title" style="font-size:clamp(1.8rem,8vw,2.4rem)">Ranking <em>geral</em></h2>
+      <div class="rtabs"><button type="button" class="rtab on" data-tab="ouro">Ranking de Ouro</button><button type="button" class="rtab" data-tab="dedicacao">Dedicação</button></div>
       <table class="rank" id="menuRank"></table>
-      <p class="note">Soma do melhor resultado de cada pessoa nas cinco fases. Os outros nomes são exemplos; no lançamento, o ranking vem da planilha.</p>
+      <p class="note rstatus" id="menuRankStatus"></p>
+      <p class="note rexplain"></p>
       <button class="btn" id="btnRankBack" type="button">Voltar</button>
     </div>
   </div>
@@ -310,31 +317,68 @@
   try { player = JSON.parse(store.get("olimpo9mm-player") || "null"); } catch (e) { player = null; }
   function bests() { try { return JSON.parse(store.get("olimpo9mm-bests-" + (player ? player.email : "anon")) || "[0,0,0,0,0]"); } catch (e) { return [0, 0, 0, 0, 0]; } }
   function saveBest(i, s) { const b = bests(); if (s > b[i]) { b[i] = s; store.set("olimpo9mm-bests-" + player.email, JSON.stringify(b)); return true; } return false; }
-  const SAMPLE = [
-    ["Atena (exemplo)", [640, 380, 230, 515, 690]], ["Hermes (exemplo)", [720, 300, 260, 480, 560]], ["Afrodite (exemplo)", [510, 420, 150, 430, 600]],
-    ["Apolo (exemplo)", [480, 260, 210, 390, 520]], ["Ártemis (exemplo)", [560, 210, 190, 300, 470]], ["Ares (exemplo)", [430, 240, 120, 350, 480]],
-    ["Dionísio (exemplo)", [390, 180, 90, 260, 410]], ["Hefesto (exemplo)", [300, 200, 140, 220, 330]], ["Deméter (exemplo)", [260, 150, 80, 180, 290]]
-  ];
-  function ranking() {
-    const rows = SAMPLE.map(([n, s]) => ({ name: n, total: s.reduce((a, b) => a + b, 0), me: false }));
-    const b = bests(); rows.push({ name: (player ? player.name : "Você") + " (você)", total: b.reduce((a, c) => a + c, 0), me: true });
-    rows.sort((a, c) => c.total - a.total || (a.me ? -1 : 1));
-    return rows;
+  // ---------- ranking online (planilha do Google) ----------
+  const API = "https://script.google.com/macros/s/AKfycbzs5Ut1MEHeQFPg3mSfzZws6Vpv2ME1zugjatTL-Ao8oyZ9lxBOx2nvkkbSKFK14fi0AA/exec";
+  let rankData = null, rankTab = "ouro", rankState = "idle";
+  const EXPLAIN = { ouro: "Ranking de Ouro: soma do seu melhor resultado em cada uma das cinco fases.", dedicacao: "Dedicação: soma de todos os pontos de todas as partidas que você jogou." };
+  function queue() { try { return JSON.parse(store.get("olimpo9mm-fila") || "[]"); } catch (e) { return []; } }
+  function setQueue(q) { store.set("olimpo9mm-fila", JSON.stringify(q)); }
+  async function postScore(item) {
+    const r = await fetch(API, { method: "POST", body: JSON.stringify(item) });
+    const d = await r.json();
+    if (!d || d.ok === false) throw Object.assign(new Error((d && d.erro) || "Erro"), { final: true });
+    return d;
   }
-  function renderRank(el) {
-    const rows = ranking(); const myPos = rows.findIndex((r) => r.me);
+  async function flushQueue() {
+    let q = queue(), last = null;
+    while (q.length) {
+      try { last = await postScore(q[0]); }
+      catch (e) { if (!e.final) break; }
+      q.shift(); setQueue(q);
+    }
+    return last;
+  }
+  async function sendScore(fase, pontos) {
+    if (!player) return;
+    setQueue(queue().concat([{ nome: player.name, email: player.email, fase: fase + 1, pontos }]));
+    rankState = "loading"; refreshRanks();
+    try { const d = await flushQueue(); if (d) { rankData = d; rankState = "ok"; } else await fetchRank(); }
+    catch (e) { rankState = "erro"; }
+    if (queue().length) rankState = rankData ? "pendente" : "erro";
+    refreshRanks();
+  }
+  async function fetchRank() {
+    rankState = "loading"; refreshRanks();
+    try {
+      await flushQueue();
+      const r = await fetch(API + "?email=" + encodeURIComponent(player ? player.email : ""));
+      rankData = await r.json(); rankState = queue().length ? "pendente" : "ok";
+    } catch (e) { rankState = "erro"; }
+    refreshRanks();
+  }
+  function refreshRanks() { renderRank($("endRank"), $("endRankStatus")); renderRank($("menuRank"), $("menuRankStatus")); }
+  function renderRank(el, status) {
+    document.querySelectorAll(".rtab").forEach((b) => b.classList.toggle("on", b.dataset.tab === rankTab));
+    document.querySelectorAll(".rexplain").forEach((p) => p.textContent = EXPLAIN[rankTab]);
     el.textContent = "";
+    const msgs = { loading: "Consultando o Oráculo…", erro: "Não foi possível falar com o Olimpo agora. Seus pontos ficam guardados e entram no ranking assim que a conexão voltar.", pendente: "Alguns pontos ainda estão a caminho do Olimpo. Eles entram no ranking quando a conexão voltar." };
+    status.textContent = msgs[rankState] || "";
+    if (!rankData) return;
+    const rows = rankData[rankTab] || [];
+    if (!rows.length) { status.textContent = status.textContent || "Ninguém pontuou ainda. Seja o primeiro deus do ranking!"; return; }
     const head = el.insertRow(); head.innerHTML = '<th>#</th><th>Nome</th><th class="n">Pontos</th>';
-    const top = H < 760 ? 5 : 6, show = rows.slice(0, top);
-    const addRow = (r, i) => {
-      const tr = el.insertRow(); if (r.me) tr.className = "me";
-      const p = tr.insertCell(); p.className = "p"; p.textContent = i + 1;
-      const n = tr.insertCell(); n.textContent = r.name; if (i < 3) { const m = document.createElement("span"); m.className = "medal"; m.title = "Zona de prêmio"; n.appendChild(m); }
-      const s = tr.insertCell(); s.className = "n"; s.textContent = r.total;
+    const eu = rankData.eu, myName = player ? player.name : "", myPos = eu ? (rankTab === "ouro" ? eu.posOuro : eu.posDedicacao) : 0;
+    const top = H < 760 ? 5 : 8;
+    const addRow = (pos, name, pts, me) => {
+      const tr = el.insertRow(); if (me) tr.className = "me";
+      const p = tr.insertCell(); p.className = "p"; p.textContent = pos;
+      const n = tr.insertCell(); n.textContent = name + (me ? " (você)" : ""); if (pos <= 3) { const m = document.createElement("span"); m.className = "medal"; m.title = "Zona de prêmio"; n.appendChild(m); }
+      const s = tr.insertCell(); s.className = "n"; s.textContent = pts;
     };
-    show.forEach(addRow);
-    if (myPos >= top) { const g = el.insertRow(); g.className = "gap"; const c = g.insertCell(); c.colSpan = 3; c.textContent = "⋮"; addRow(rows[myPos], myPos); }
+    rows.slice(0, top).forEach((r) => addRow(r.pos, r.nome, r.pontos, r.pos === myPos));
+    if (eu && myPos > top) { const g = el.insertRow(); g.className = "gap"; const c = g.insertCell(); c.colSpan = 3; c.textContent = "⋮"; addRow(myPos, eu.nome || myName, rankTab === "ouro" ? eu.ouro : eu.dedicacao, true); }
   }
+  document.querySelectorAll(".rtab").forEach((b) => b.addEventListener("click", () => { rankTab = b.dataset.tab; refreshRanks(); }));
 
   // ================= fases =================
   const ROMAN = ["I", "II", "III", "IV", "V"];
@@ -948,7 +992,7 @@
     $("endTitle").textContent = msg;
     $("endScore").textContent = G.score;
     $("endBest").textContent = isBest && G.score > 0 ? "Novo recorde nesta fase!" : "Seu recorde nesta fase: " + bests()[curIndex] + " pontos";
-    renderRank($("endRank"));
+    sendScore(curIndex, G.score);
     $("btnNext").hidden = curIndex >= PHASES.length - 1;
     show("scrEnd");
     render();
@@ -979,13 +1023,13 @@
   $("btnAgain").addEventListener("click", () => startPhase(curIndex));
   $("btnNext").addEventListener("click", () => openIntro(curIndex + 1));
   $("btnEndMenu").addEventListener("click", renderMenu);
-  $("btnRankMenu").addEventListener("click", () => { renderRank($("menuRank")); show("scrRank"); });
+  $("btnRankMenu").addEventListener("click", () => { show("scrRank"); fetchRank(); });
   $("btnRankBack").addEventListener("click", renderMenu);
   $("btnExit").addEventListener("click", () => { clearTimeout(endTimer); running = false; ending = false; renderMenu(); drawIdle(); });
 
   resize();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!running) drawIdle(); });
-  if (player) renderMenu(); else show("scrLogin");
+  if (player) { renderMenu(); flushQueue().catch(() => {}); } else show("scrLogin");
 })();
 </script>
 
