@@ -315,8 +315,9 @@
   };
   let player = null;
   try { player = JSON.parse(store.get("olimpo9mm-player") || "null"); } catch (e) { player = null; }
-  function bests() { try { return JSON.parse(store.get("olimpo9mm-bests-" + (player ? player.email : "anon")) || "[0,0,0,0,0]"); } catch (e) { return [0, 0, 0, 0, 0]; } }
-  function saveBest(i, s) { const b = bests(); if (s > b[i]) { b[i] = s; store.set("olimpo9mm-bests-" + player.email, JSON.stringify(b)); return true; } return false; }
+  if (player && !/@9mm\.com\.br$/.test(player.email || "")) player = null;
+  function bests() { try { return JSON.parse(store.get("olimpo9mm-v2-bests-" + (player ? player.email : "anon")) || "[0,0,0,0,0]"); } catch (e) { return [0, 0, 0, 0, 0]; } }
+  function saveBest(i, s) { const b = bests(); if (s > b[i]) { b[i] = s; store.set("olimpo9mm-v2-bests-" + player.email, JSON.stringify(b)); return true; } return false; }
   // ---------- ranking online (planilha do Google) ----------
   const API = "https://script.google.com/macros/s/AKfycbzs5Ut1MEHeQFPg3mSfzZws6Vpv2ME1zugjatTL-Ao8oyZ9lxBOx2nvkkbSKFK14fi0AA/exec";
   let rankData = null, rankTab = "ouro", rankState = "idle";
@@ -388,11 +389,21 @@
   PHASES.push((() => {
     let objs, halves, trail, t, spawnT, furyT, furyLeft, furyQ, stroke, down, furyN = 0, spd = 1;
     const R = () => (touch ? 54 : 46) * S, PW = () => 80 * S, PH = () => 98 * S, Gv = () => 1050 * S * spd * spd;
+    function freeX(kind) {
+      const minD = (kind === "ref" ? 2.6 : 1.7) * R(), others = objs.filter((o) => o.vy < 0);
+      let x = W * (0.18 + Math.random() * 0.64);
+      for (let tries = 0; tries < 14; tries++) {
+        const cand = W * (0.18 + Math.random() * 0.64);
+        const ok = others.every((o) => Math.abs(o.x - cand) > (o.kind === "ref" || kind === "ref" ? 2.6 * R() : minD));
+        x = cand; if (ok) break;
+      }
+      return x;
+    }
     function spawn(kind) {
-      const x = W * (0.18 + Math.random() * 0.64);
+      const x = freeX(kind);
       const peak = HUD + (H - HUD) * (0.08 + Math.random() * 0.36);
       const vy = -Math.sqrt(2 * Gv() * (H + R() - peak));
-      const vx = ((W / 2 - x) * (0.2 + Math.random() * 0.4) / 1.4 + (Math.random() - 0.5) * Math.min(80 * S, W * 0.12)) * spd;
+      const vx = kind === "ref" ? (Math.random() - 0.5) * 30 * S * spd : ((W / 2 - x) * (0.2 + Math.random() * 0.4) / 1.4 + (Math.random() - 0.5) * Math.min(80 * S, W * 0.12)) * spd;
       objs.push({ kind, x, y: H + R(), vx, vy, a: (Math.random() - 0.5) * 0.6, va: (Math.random() - 0.5) * 3 });
     }
     function paper(kind, w, h) {
@@ -423,10 +434,10 @@
       if (o.kind === "job") { burst(o.x, o.y, 12, [C.paper2, C.ink, C.gold]); addScore(10, o.x, o.y - 24 * S); stroke.hits++; stroke.t = 0.35; }
       else { burst(o.x, o.y, 20, [C.ink, C.gold]); popText("REFAÇÃO!", o.x, o.y - 24 * S, { c: C.red, font: FP, size: 20 }); hurt("A refação venceu"); }
     }
-    function endStroke() { if (stroke.hits >= 3) { const b = stroke.hits * 5; addScore(b); popText("COMBO x" + stroke.hits + " +" + b, W / 2, HUD + (H - HUD) * 0.25, { font: FP, size: 22 }); } stroke.hits = 0; }
+    function endStroke() { if (stroke.hits >= 3) { const b = stroke.hits * 3; addScore(b); popText("COMBO x" + stroke.hits + " +" + b, W / 2, HUD + (H - HUD) * 0.25, { font: FP, size: 22 }); } stroke.hits = 0; }
     return {
       name: "A Fúria de Zeus", classic: "Fruit Ninja", lives: 3, sun: true,
-      how: ["Deslize o dedo (ou arraste o mouse) para cortar os jobs.", "Não corte a REFAÇÃO: ela tira uma vida.", "Job que cai sem ser cortado também tira uma vida.", "Corte 3 ou mais de uma vez para fazer combo. A cada Fúria de Zeus, tudo fica mais rápido."],
+      how: ["Deslize o dedo (ou arraste o mouse) para cortar os jobs.", "Não corte a REFAÇÃO: ela tira uma vida.", "Job que cai sem ser cortado também tira uma vida.", "Na Fúria de Zeus só chovem jobs, e depois de cada uma tudo fica mais rápido. Corte 3 ou mais de uma vez para fazer combo."],
       start() { objs = []; halves = []; trail = []; t = 0; spawnT = 0.6; furyT = 20; furyLeft = 0; furyQ = 0; furyN = 0; spd = 1; stroke = { hits: 0, t: 0 }; down = false; },
       pointer(type, x, y) {
         if (type === "down") { down = true; trail = [{ x, y, t: performance.now() }]; }
@@ -442,7 +453,7 @@
         if (!ending) {
           const k = Math.min(1, t / 120 + furyN * 0.12);
           spawnT -= dt;
-          if (spawnT <= 0 && furyLeft <= 0) { const n = 1 + Math.floor(Math.random() * (1 + 3 * k)); for (let i = 0; i < n; i++) spawn(Math.random() < Math.min(0.32, 0.1 + 0.14 * k + furyN * 0.02) ? "ref" : "job"); spawnT = 1.25 - 0.75 * k + Math.random() * 0.35; }
+          if (spawnT <= 0 && furyLeft <= 0) { const n = 1 + Math.floor(Math.random() * (1 + 3 * k)); for (let i = 0; i < n; i++) spawn(Math.random() < Math.min(0.4, 0.18 + 0.14 * k + furyN * 0.02) ? "ref" : "job"); spawnT = 1.25 - 0.75 * k + Math.random() * 0.35; }
           furyT -= dt;
           if (furyT <= 0) {
             furyN++; spd = 1 + Math.min(0.6, furyN * 0.12);
@@ -450,7 +461,7 @@
             banner = { txt: "Fúria de Zeus nº " + furyN + "!", life: 1.5 }; flash = 0.4; flashCol = C.gold; shake = 0.25 + furyN * 0.05;
             furyT = Math.max(14, 24 - furyN * 2);
           }
-          if (furyLeft > 0) { furyLeft -= dt; if (furyQ > 0 && Math.random() < dt * (8 + furyN * 2)) { spawn(Math.random() < Math.min(0.3, 0.1 + furyN * 0.03) ? "ref" : "job"); furyQ--; } }
+          if (furyLeft > 0) { furyLeft -= dt; if (furyQ > 0 && Math.random() < dt * (8 + furyN * 2)) { spawn("job"); furyQ--; } }
         }
         if (stroke.t > 0) { stroke.t -= dt; if (stroke.t <= 0 && !down) endStroke(); }
         const g = Gv();
@@ -485,7 +496,7 @@
 
   // ---------- FASE II · A Fome da Hidra (Cobrinha) ----------
   PHASES.push((() => {
-    let cell, cols, rows, ox, oy, snake, dir, nextDir, food, stepT, step, eaten, sw, swiped, inv;
+    let cell, cols, rows, ox, oy, snake, dir, nextDir, food, stepT, step, eaten, sw, swiped, inv, cafe, cafeT;
     const OPP = { up: "down", down: "up", left: "right", right: "left" };
     const VEC = { right: [1, 0], left: [-1, 0], up: [0, -1], down: [0, 1] };
     function layout() {
@@ -494,13 +505,20 @@
       cols = Math.floor((W - pad * 2) / cell); rows = Math.floor(availH / cell);
       ox = Math.round((W - cols * cell) / 2); oy = Math.round(HUD + 6 * S + (availH - rows * cell) / 2);
     }
-    function placeFood() { let p; do { p = { x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows) }; } while (snake.some((s) => s.x === p.x && s.y === p.y)); food = p; }
+    function freeCell() { let p; do { p = { x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows) }; } while (snake.some((s) => s.x === p.x && s.y === p.y) || (food && food.x === p.x && food.y === p.y) || (cafe && cafe.x === p.x && cafe.y === p.y)); return p; }
+    function placeFood() { food = null; food = freeCell(); }
+    function headCells() {
+      const h = snake[0], dv = VEC[dir], pv = [-dv[1], dv[0]], out = [h];
+      const extra = heads() === 1 ? [] : heads() === 2 ? [1] : [1, -1];
+      for (const sg of extra) out.push({ x: h.x + pv[0] * sg, y: h.y + pv[1] * sg });
+      return out;
+    }
     function turn(d) { if (d && d !== OPP[dir] && d !== dir) nextDir = d; }
     const heads = () => Math.min(3, 1 + Math.floor(eaten / 6));
     return {
-      name: "A Fome da Hidra", classic: "Cobrinha", lives: 3, sun: true,
-      how: ["Toque na tela e a Hidra vira para o lado do toque (também dá para deslizar ou usar as setas).", "Coma os briefings dourados para crescer. A cada 6, nasce uma nova cabeça.", "Bater na borda ou morder o próprio corpo tira uma vida.", "Ao perder uma vida, a Hidra recomeça no centro. São 3 vidas."],
-      start() { layout(); const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2); snake = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }]; dir = "right"; nextDir = "right"; stepT = 0; eaten = 0; inv = 0; placeFood(); sw = null; },
+      name: "A Fome da Hidra", classic: "Cobrinha", lives: 1, sun: true,
+      how: ["Toque na tela e a Hidra vira para o lado do toque (também dá para deslizar ou usar as setas).", "Coma os briefings dourados para crescer. A cada 6, nasce uma nova cabeça, e todas as cabeças comem.", "De vez em quando aparece um café: pegue antes que ele esfrie e ganhe pontos extras.", "Só tem uma vida: bater na borda ou morder o próprio corpo acaba o jogo."],
+      start() { layout(); const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2); snake = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }]; dir = "right"; nextDir = "right"; stepT = 0; eaten = 0; inv = 0; cafe = null; cafeT = 8; food = null; placeFood(); sw = null; },
       resize() { if (snake) layout(); },
       key(k) { turn({ ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[k]); },
       pointer(type, x, y) {
@@ -517,6 +535,8 @@
       update(dt) {
         if (ending) return;
         if (inv > 0) inv -= dt;
+        if (cafe) { cafe.life -= dt; if (cafe.life <= 0) cafe = null; }
+        else { cafeT -= dt; if (cafeT <= 0) { cafe = freeCell(); cafe.life = 6; cafeT = 10 + Math.random() * 6; } }
         stepT -= dt; step = Math.max(0.07, 0.15 - eaten * 0.003);
         if (stepT > 0) return; stepT = step;
         dir = nextDir;
@@ -532,9 +552,11 @@
           dir = "right"; nextDir = "right"; inv = 1.2; stepT = 0.4; return;
         }
         snake.unshift(n);
-        if (n.x === food.x && n.y === food.y) {
-          eaten++; addScore(10, ox + n.x * cell + cell / 2, oy + n.y * cell - 6 * S);
-          burst(ox + n.x * cell + cell / 2, oy + n.y * cell + cell / 2, 8, [C.gold, C.ink]);
+        const hc = headCells(), at = (o) => o && hc.some((c) => c.x === o.x && c.y === o.y);
+        if (at(cafe)) { addScore(30, ox + cafe.x * cell + cell / 2, oy + cafe.y * cell - 6 * S, "Café! +30"); burst(ox + cafe.x * cell + cell / 2, oy + cafe.y * cell + cell / 2, 10, [C.gold, C.ink]); cafe = null; }
+        if (at(food)) {
+          eaten++; addScore(15, ox + food.x * cell + cell / 2, oy + food.y * cell - 6 * S);
+          burst(ox + food.x * cell + cell / 2, oy + food.y * cell + cell / 2, 8, [C.gold, C.ink]);
           if (eaten % 6 === 0 && eaten <= 12) popText("Nasceu mais uma cabeça!", W / 2, HUD + 60 * S, { font: FD });
           placeFood();
         } else snake.pop();
@@ -547,6 +569,7 @@
         ctx.stroke();
         ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.strokeRect(ox - 3, oy - 3, cols * cell + 6, rows * cell + 6); ctx.lineWidth = 1; ctx.strokeRect(ox - 8, oy - 8, cols * cell + 16, rows * cell + 16);
         const p = cell / 6; pix(BMP.scroll, ox + food.x * cell, oy + food.y * cell, p, { "#": C.goldDeep, ".": C.gold });
+        if (cafe && !(cafe.life < 1.5 && Math.floor(performance.now() / 120) % 2)) { const q = cell / 7; pix(BMP.cup, ox + cafe.x * cell + 0.5 * q, oy + cafe.y * cell + 0.5 * q, q, { "#": C.ink }); }
         const blink = inv > 0 && Math.floor(performance.now() / 100) % 2 === 0;
         if (!blink) snake.forEach((s, i) => {
           const x = ox + s.x * cell, y = oy + s.y * cell, ins = i === 0 ? 0 : cell * 0.08;
@@ -628,7 +651,7 @@
     }
     return {
       name: "O Voo de Ícaro", classic: "Flappy Bird", lives: 3, sun: true,
-      how: ["Toque na tela (ou espaço) para o anjinho bater as asas.", "As colunas gregas são sólidas: bateu, quica e perde uma vida.", "Não suba demais nem caia no mar.", "Cada coluna vencida vale 10 pontos. São 3 vidas."],
+      how: ["Toque na tela (ou espaço) para o anjinho bater as asas.", "As colunas gregas são sólidas: bateu, quica e perde uma vida.", "Não suba demais nem caia no mar.", "Cada coluna vencida vale 15 pontos. Pegue os jobs escondidos perto das colunas: +15 cada. São 3 vidas."],
       start() { b = { x: W * 0.3, y: HUD + (H - HUD) * 0.45, vy: 0, a: 0 }; cols = []; spawnT = 0.4; started = false; speed = 170 * S; inv = 0; },
       key(k) { if (k === " " || k === "ArrowUp") flap(); },
       pointer(type) { if (type === "down") flap(); },
@@ -641,13 +664,16 @@
         spawnT -= dt;
         if (spawnT <= 0) {
           const gap = Math.max(160 * S, 215 * S - G.score * 0.3 * S), minY = HUD + 100 * S, maxY = H - insetBottom - 50 * S - gap;
-          cols.push({ x: W + 20, gapY: minY + Math.random() * Math.max(10, maxY - minY), gap, passed: false });
+          const gy = minY + Math.random() * Math.max(10, maxY - minY), col = { x: W + 20, gapY: gy, gap, passed: false };
+          if (Math.random() < 0.6) { const edge = Math.random() < 0.5; col.job = { dx: CW() / 2 + (Math.random() < 0.5 ? -1 : 1) * 4 * S, y: edge ? gy + 22 * S : gy + gap - 22 * S, got: false }; }
+          cols.push(col);
           spawnT = 1.6 * (170 * S) / speed;
         }
         const r = 13 * S;
         for (const c of cols) {
           c.x -= speed * dt;
-          if (!c.passed && c.x + CW() < b.x) { c.passed = true; addScore(10, b.x, b.y - 30 * S); }
+          if (!c.passed && c.x + CW() < b.x) { c.passed = true; addScore(15, b.x, b.y - 30 * S); }
+          if (c.job && !c.job.got && Math.hypot(c.x + c.job.dx - b.x, c.job.y - b.y) < 26 * S) { c.job.got = true; addScore(15, b.x, b.y - 50 * S, "Job! +15"); burst(b.x, b.y, 8, [C.gold, C.ink]); }
           if (inv <= 0 && b.x + r > c.x - 14 * S && b.x - r < c.x + CW() + 14 * S) {
             if (b.y - r < c.gapY) { if (bump(true)) return; } else if (b.y + r > c.gapY + c.gap) { if (bump(false)) return; }
           }
@@ -667,7 +693,15 @@
       draw() {
         ctx.strokeStyle = "rgba(43,43,43,0.5)"; ctx.lineWidth = 1.2;
         for (let j = 0; j < 3; j++) { const y = H - insetBottom - 6 * S - j * 7 * S; ctx.beginPath(); for (let x = 0; x <= W; x += 16 * S) { ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 4 * S, y - 4 * S, x + 8 * S, y); } ctx.stroke(); }
-        for (const c of cols) { column(c.x, HUD, c.gapY, true); column(c.x, c.gapY + c.gap, H + 2, false); }
+        for (const c of cols) {
+          column(c.x, HUD, c.gapY, true); column(c.x, c.gapY + c.gap, H + 2, false);
+          if (c.job && !c.job.got) {
+            const jx = c.x + c.job.dx, jy = c.job.y + Math.sin(performance.now() / 260 + c.x) * 3 * S, w = 26 * S, h = 30 * S;
+            ctx.fillStyle = C.paper2; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.fillRect(jx - w / 2, jy - h / 2, w, h); ctx.strokeRect(jx - w / 2, jy - h / 2, w, h);
+            ctx.fillStyle = C.ink; ctx.font = `700 ${9 * S}px ${FD}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("JOB", jx, jy - 3 * S);
+            ctx.fillStyle = C.gold; ctx.fillRect(jx - w / 2 + 4 * S, jy + 6 * S, w - 8 * S, 2 * S);
+          }
+        }
         cherub();
         if (!started) { ctx.fillStyle = C.ink; ctx.font = `700 ${14 * S}px ${FP}`; ctx.textAlign = "center"; ctx.fillText("TOQUE PARA VOAR", W / 2, b.y + 64 * S); }
       }
@@ -715,9 +749,9 @@
     }
     function eat(e) {
       const c = grid[e.y][e.x];
-      if (c === ".") { grid[e.y][e.x] = " "; left--; addScore(5); }
-      else if (c === "o") { grid[e.y][e.x] = " "; left--; addScore(20, ox + e.x * tile + tile / 2, oy + e.y * tile); fright = 6; popText("Café! Agora você caça os Minotauros", W / 2, HUD + 40 * S, { font: FP, size: 13 }); }
-      if (left <= 0) { addScore(100); popText("Labirinto limpo! +100", W / 2, HUD + 60 * S, { font: FD, size: 22 }); level++; newLevel(); }
+      if (c === ".") { grid[e.y][e.x] = " "; left--; addScore(1); }
+      else if (c === "o") { grid[e.y][e.x] = " "; left--; addScore(10, ox + e.x * tile + tile / 2, oy + e.y * tile); fright = 6; popText("Café! Agora você caça os Minotauros", W / 2, HUD + 40 * S, { font: FP, size: 13 }); }
+      if (left <= 0) { addScore(60); popText("Labirinto limpo! +60", W / 2, HUD + 60 * S, { font: FD, size: 22 }); level++; newLevel(); }
     }
     function want(d) { if (d) hero.want = d; }
     const flip = (rows) => rows.map((r) => r.split("").reverse().join(""));
@@ -745,7 +779,7 @@
           const sp = g.speed; if (fright > 0) g.speed = sp * 0.55;
           stepEntity(g, dt, ghostChoose); g.speed = sp;
           if (Math.hypot(g.fx - hero.fx, g.fy - hero.fy) < 0.6) {
-            if (fright > 0) { addScore(50, ox + g.fx * tile + tile / 2, oy + g.fy * tile, "+50"); burst(ox + g.fx * tile + tile / 2, oy + g.fy * tile + tile / 2, 12, [C.ink, C.gold]); Object.assign(g, { x: g.home.x, y: g.home.y, fx: g.home.x, fy: g.home.y, moving: false, delay: 2 }); }
+            if (fright > 0) { addScore(25, ox + g.fx * tile + tile / 2, oy + g.fy * tile, "+25"); burst(ox + g.fx * tile + tile / 2, oy + g.fy * tile + tile / 2, 12, [C.ink, C.gold]); Object.assign(g, { x: g.home.x, y: g.home.y, fx: g.home.x, fy: g.home.y, moving: false, delay: 2 }); }
             else { const over = hurt("O Minotauro venceu"); if (!over) { popText("O Minotauro te pegou!", W / 2, HUD + 50 * S, { c: C.red, font: FP, size: 14 }); resetActors(); } return; }
           }
         }
@@ -835,7 +869,7 @@
     function hitMe(x, y, rx, ry) { return Math.abs(x - me.x) < rx && Math.abs(y - (me.y - 6 * S)) < ry; }
     return {
       name: "A Batalha de Troia", classic: "Space Invaders", lives: 3, sun: true,
-      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os JOB (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Desvie do que cai da muralha. Pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
+      how: ["Arraste o dedo (ou use as setas) para mover o Cavalo de Troia.", "As lanças saem sozinhas: derrube os e-mails, os JOB (precisam de 2 lanças) e os URGENTE, que mergulham em você.", "Não deixe nenhum URGENTE chegar ao chão: prazo perdido tira uma vida. Pegue a ferradura dourada para ganhar lança tripla.", "Se a frota chegar ao cavalo, a batalha acaba."],
       start() { wave = 1; wallY = HUD + 40 * S; me = { x: W / 2, y: H - insetBottom - 44 * S }; targetX = me.x; shots = []; bombs = []; drops = []; power = 0; fireT = 0; keys = {}; newWave(); },
       resize() { if (me) { me.y = H - insetBottom - 44 * S; wallY = HUD + 40 * S; } },
       key(k, isDown) { keys[k] = isDown; },
@@ -855,7 +889,7 @@
         for (const s of shots) { s.y -= 620 * S * dt; s.x += s.vx * dt; }
         shots = shots.filter((s) => s.y > wallY && !s.hit);
         const alive = fleet.filter((f) => f.alive);
-        if (!alive.length) { addScore(100); popText("Onda " + wave + " vencida! +100", W / 2, wallY + 80 * S, { font: FD }); wave++; newWave(); return; }
+        if (!alive.length) { addScore(50); popText("Onda " + wave + " vencida! +50", W / 2, wallY + 80 * S, { font: FD }); wave++; newWave(); return; }
         const formation = alive.filter((f) => !f.dive);
         const speed = fspeed * (1 + (1 - alive.length / fleet.length) * 1.6);
         let minX = Infinity, maxX = -Infinity, maxY = 0;
@@ -868,14 +902,14 @@
         for (const f of alive) if (f.dive) {
           f.t += dt; f.y += (170 + wave * 12) * S * dt; f.x = f.bx + Math.sin(f.t * 5 + f.ph) * 40 * S;
           if (hitMe(f.x, f.y, 34 * S, 26 * S)) { f.alive = false; burst(f.x, f.y, 10, [C.red, C.ink]); if (hurt("O URGENTE derrubou o cavalo")) return; popText("Urgente!", me.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); }
-          else if (f.y > H + 20 * S) f.alive = false;
+          else if (f.y > me.y + 34 * S) { f.alive = false; if (hurt("Um URGENTE passou")) return; popText("Prazo perdido!", f.x, me.y - 60 * S, { c: C.red, font: FP, size: 14 }); }
         }
         // muralha joga refações
         if (Math.random() < dt * (0.9 + wave * 0.35) && formation.length) { const f = formation[Math.floor(Math.random() * formation.length)]; bombs.push({ x: f.x, y: f.y + 12 * S }); }
         for (const s of shots) for (const f of alive) if (!s.hit && f.alive && Math.abs(s.x - f.x) < 20 * S && Math.abs(s.y - f.y) < 14 * S) {
           s.hit = true; f.hp--;
           if (f.hp <= 0) {
-            f.alive = false; addScore(f.type === "urg" ? 20 : f.type === "alt" ? 15 : 10, f.x, f.y - 14 * S); burst(f.x, f.y, 8, [C.ink, C.gold, C.paper2]);
+            f.alive = false; addScore(f.type === "urg" ? 20 : f.type === "alt" ? 15 : 8, f.x, f.y - 14 * S); burst(f.x, f.y, 8, [C.ink, C.gold, C.paper2]);
             if (Math.random() < 0.07) drops.push({ x: f.x, y: f.y });
           } else burst(f.x, f.y, 4, [C.ink]);
         }
@@ -948,10 +982,6 @@
 
   function drawIdle() {
     drawBg(true);
-    ctx.save(); ctx.globalAlpha = 0.5;
-    const demo = [[0.2, 0.25, -0.3], [0.78, 0.3, 0.25], [0.25, 0.75, 0.2], [0.8, 0.72, -0.2]];
-    for (const [fx, fy, a] of demo) { ctx.save(); ctx.translate(W * fx, H * fy); ctx.rotate(a); ctx.fillStyle = C.paper2; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.fillRect(-36 * S, -44 * S, 72 * S, 88 * S); ctx.strokeRect(-36 * S, -44 * S, 72 * S, 88 * S); ctx.fillStyle = C.ink; ctx.font = `700 ${20 * S}px ${FD}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("JOB", 0, -6 * S); ctx.restore(); }
-    ctx.restore();
   }
 
   function renderMenu() {
@@ -959,8 +989,8 @@
     const b = bests(), list = $("phaseList"); list.textContent = "";
     PHASES.forEach((p, i) => {
       const btn = document.createElement("button"); btn.type = "button"; btn.className = "phase";
-      btn.innerHTML = `<span class="num">${ROMAN[i]}</span><span><span class="nm"></span><span class="cl"></span></span><span class="best"></span>`;
-      btn.querySelector(".nm").textContent = p.name; btn.querySelector(".cl").textContent = "Estilo " + p.classic;
+      btn.innerHTML = `<span class="num">${ROMAN[i]}</span><span><span class="nm"></span></span><span class="best"></span>`;
+      btn.querySelector(".nm").textContent = p.name;
       btn.querySelector(".best").textContent = b[i] ? b[i] + " pts" : "—";
       btn.addEventListener("click", () => openIntro(i));
       list.appendChild(btn);
@@ -1013,7 +1043,7 @@
     e.preventDefault();
     const name = $("inName").value.trim(), email = $("inMail").value.trim().toLowerCase();
     if (!name) { $("loginErr").textContent = "Escreva seu nome para aparecer no ranking."; return; }
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $("loginErr").textContent = "Esse e-mail não parece válido. Confira e tente de novo."; return; }
+    if (!/^[^@\s]+@9mm\.com\.br$/.test(email)) { $("loginErr").textContent = "Use o seu e-mail da 9mm (terminado em @9mm.com.br)."; return; }
     player = { name, email }; store.set("olimpo9mm-player", JSON.stringify(player)); $("loginErr").textContent = "";
     renderMenu();
   });
