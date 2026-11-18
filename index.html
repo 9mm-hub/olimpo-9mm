@@ -95,6 +95,9 @@
   .rank tr.gap td { text-align: center; color: var(--soft); border-bottom: 0; padding: 2px; }
   .medal { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--gold); margin-left: 6px; vertical-align: 0.05em; }
   .link { background: none; border: 0; color: var(--soft); font: inherit; font-size: 0.82rem; text-decoration: underline; cursor: pointer; padding: 4px; }
+  .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); translate: -50% 0; z-index: 20; width: min(26rem, calc(100% - 32px)); box-sizing: border-box;
+    background: var(--graphite); color: var(--paper); padding: 14px 18px; font: 600 0.92rem/1.4 var(--ui); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .toast b { color: var(--gold); }
   .hudbtn {
     position: absolute; z-index: 2; top: calc(env(safe-area-inset-top, 0px) + 12px); left: max(12px, env(safe-area-inset-left, 0px));
     font-family: var(--pixel); font-size: 0.75rem; background: var(--paper-2); color: var(--graphite); border: 1px solid var(--graphite); padding: 8px 10px; cursor: pointer;
@@ -104,6 +107,7 @@
 <body>
 
 <div class="game" id="game">
+  <div class="toast" id="toast" role="status" hidden></div>
   <canvas id="cv" aria-label="Área do jogo"></canvas>
   <button class="hudbtn" id="btnExit" type="button" hidden>✕ SAIR</button>
 
@@ -163,6 +167,7 @@
         <button class="btn ghost" id="btnAgain" type="button">Jogar de novo</button>
         <button class="btn" id="btnNext" type="button">Próxima fase</button>
       </div>
+      <button class="btn gold" id="btnShareEnd" type="button">Compartilhar meu ranking</button>
       <button class="link" id="btnEndMenu" type="button">Voltar às fases</button>
     </div>
   </div>
@@ -176,7 +181,8 @@
       <table class="rank" id="menuRank"></table>
       <p class="note rstatus" id="menuRankStatus"></p>
       <p class="note rexplain"></p>
-      <button class="btn" id="btnRankBack" type="button">Voltar</button>
+      <button class="btn gold" id="btnShareRank" type="button">Compartilhar meu ranking</button>
+      <button class="btn ghost" id="btnRankBack" type="button">Voltar</button>
     </div>
   </div>
 </div>
@@ -1064,6 +1070,90 @@
   $("btnRankBack").addEventListener("click", renderMenu);
   $("btnExit").addEventListener("click", () => { clearTimeout(endTimer); running = false; ending = false; renderMenu(); drawIdle(); });
 
+
+  // ================= compartilhar ranking (imagem para story) =================
+  const IG = "@9mmcomunicacao";
+  function toast(html, ms) { const t = $("toast"); t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 5000); }
+  function goldMask(img, w, h) {
+    const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d");
+    x.drawImage(img, 0, 0, w, h); x.globalCompositeOperation = "source-in"; x.fillStyle = x.createPattern(goldTex, "repeat"); x.fillRect(0, 0, w, h);
+    return c;
+  }
+  function ordinal(n) { return n + "º"; }
+  async function buildShareImage() {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const Wc = 1080, Hc = 1920, c = document.createElement("canvas"); c.width = Wc; c.height = Hc; const x = c.getContext("2d");
+    x.fillStyle = x.createPattern(paperTex, "repeat"); x.fillRect(0, 0, Wc, Hc);
+    // raios e sol
+    const cx = Wc / 2, cy = 610, r = 330;
+    x.strokeStyle = "rgba(156,122,54,0.35)"; x.lineWidth = 2; x.beginPath();
+    for (let i = 0; i < 96; i++) { const a = (i / 96) * Math.PI * 2, r2 = r * (i % 2 ? 1.3 : 1.55); x.moveTo(cx + Math.cos(a) * r * 1.06, cy + Math.sin(a) * r * 1.06); x.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); }
+    x.stroke();
+    x.globalAlpha = 0.9; x.fillStyle = x.createPattern(goldTex, "repeat"); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); x.globalAlpha = 1;
+    // capa (logo do Olimpo) sobre o sol
+    const cover = document.querySelector(".cover");
+    if (cover && cover.naturalWidth) {
+      const cw = 430, ch = cw * cover.naturalHeight / cover.naturalWidth;
+      x.save(); x.beginPath(); x.roundRect ? x.roundRect(cx - cw / 2 - 18, cy - ch / 2 - 18, cw + 36, ch + 36, 8) : x.rect(cx - cw / 2 - 18, cy - ch / 2 - 18, cw + 36, ch + 36);
+      x.fillStyle = "#FBF9F4"; x.fill(); x.lineWidth = 2; x.strokeStyle = C.ink; x.stroke(); x.restore();
+      x.drawImage(cover, cx - cw / 2, cy - ch / 2, cw, ch);
+    }
+    // dados
+    const eu = rankData && rankData.eu, top = (rankData && rankData.ouro) || [];
+    const name = (player && player.name ? player.name.split(" ")[0] : "Eu");
+    x.textAlign = "center"; x.textBaseline = "alphabetic"; x.fillStyle = C.ink;
+    let y = 1080;
+    if (eu && eu.posOuro) {
+      x.font = `500 52px ${FD}`; x.fillText(name + " está em", cx, y);
+      x.font = `700 220px ${FD}`; x.fillText(ordinal(eu.posOuro), cx, y + 210);
+      x.font = `italic 500 56px ${FD}`; x.fillStyle = C.goldDeep; x.fillText("lugar no Olimpo", cx, y + 285);
+      x.fillStyle = C.ink; x.font = `700 40px ${FP}`; x.fillText(eu.ouro + " PONTOS", cx, y + 355);
+    } else {
+      x.font = `500 52px ${FD}`; x.fillText(name + " fez", cx, y);
+      x.font = `700 200px ${FP}`; x.fillText(String(G.score), cx, y + 200);
+      x.font = `italic 500 56px ${FD}`; x.fillStyle = C.goldDeep; x.fillText("pontos no Olimpo", cx, y + 280);
+    }
+    // top 3
+    if (top.length) {
+      y = 1570; x.strokeStyle = C.ink; x.lineWidth = 2; x.beginPath(); x.moveTo(200, y - 50); x.lineTo(880, y - 50); x.stroke();
+      x.fillStyle = C.soft; x.font = `600 26px ${FU}`; x.fillText("TOP 3 DO OLIMPO", cx, y - 68);
+      top.slice(0, 3).forEach((t, i) => {
+        const yy = y + i * 62; x.textAlign = "left"; x.fillStyle = C.goldDeep; x.font = `700 40px ${FD}`; x.fillText(ordinal(t.pos), 230, yy);
+        x.fillStyle = C.ink; x.font = `500 38px ${FD}`; let nm = t.nome; while (x.measureText(nm).width > 470 && nm.length > 3) nm = nm.slice(0, -2); x.fillText(nm === t.nome ? nm : nm + "…", 320, yy);
+        x.textAlign = "right"; x.font = `700 32px ${FP}`; x.fillText(t.pontos, 850, yy);
+      });
+      x.textAlign = "center";
+    }
+    // rodapé: logo 9mm dourado + @
+    if (logoImg.naturalWidth) { const lw = 150, lh = lw * logoImg.naturalHeight / logoImg.naturalWidth; x.drawImage(goldMask(logoImg, lw, lh), cx - lw / 2, 1830 - lh); }
+    x.fillStyle = C.ink; x.font = `600 30px ${FU}`; x.fillText(IG, cx, 1870);
+    // título no topo
+    x.font = `700 34px ${FP}`; x.fillText("SUBI NO RANKING DO OLIMPO", cx, 150);
+    x.font = `600 26px ${FU}`; x.fillStyle = C.soft; x.fillText("FESTA DE FIM DE ANO 9MM", cx, 200);
+    return new Promise((res) => c.toBlob(res, "image/png"));
+  }
+  async function shareRank() {
+    const btns = [$("btnShareEnd"), $("btnShareRank")]; btns.forEach((b) => b.disabled = true);
+    try {
+      if (!rankData && player) { try { await fetchRank(); } catch (e) {} }
+      const blob = await buildShareImage();
+      const file = new File([blob], "olimpo-9mm-ranking.png", { type: "image/png" });
+      const text = "Subi no ranking do Olimpo 9mm! " + IG;
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        toast("Não esquece de marcar a <b>" + IG + "</b> no story! 🪽", 7000);
+        await navigator.share({ files: [file], text });
+      } else {
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "olimpo-9mm-ranking.png"; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        toast("Imagem salva! Posta no story e não esquece de marcar a <b>" + IG + "</b> 🪽", 7000);
+      }
+    } catch (e) {
+      if (e && e.name !== "AbortError") toast("Não deu para gerar a imagem agora. Tenta de novo em instantes.", 5000);
+    } finally { btns.forEach((b) => b.disabled = false); }
+  }
+  $("btnShareEnd").addEventListener("click", shareRank);
+  $("btnShareRank").addEventListener("click", shareRank);
+  window.__buildShareImage = buildShareImage;
   resize();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!running) drawIdle(); });
   if (player) { renderMenu(); flushQueue().catch(() => {}); } else show("scrLogin");
