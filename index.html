@@ -88,9 +88,13 @@
   .rank td.n, .rank th.n { text-align: right; font-family: var(--pixel); }
   .rank td.p { width: 2.2em; font-family: var(--display); font-weight: 700; color: var(--gold-deep); }
   .rank tr.me td { background: rgba(201, 164, 92, 0.22); font-weight: 600; }
-  .rtabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
-  .rtab { font: 600 0.78rem var(--ui); letter-spacing: 0.04em; padding: 8px 6px; border: 1px solid var(--graphite); background: transparent; color: var(--graphite); cursor: pointer; }
-  .rtab.on { background: var(--graphite); color: var(--paper); }
+  .posbox { border-top: 1px solid var(--graphite); border-bottom: 1px solid var(--graphite); padding: 16px 0 14px; display: grid; gap: 4px; }
+  .posbox:empty { display: none; }
+  .posbox .lbl { margin: 0; font-family: var(--display); font-size: 1.05rem; }
+  .posbox .pos { margin: 0; font-family: var(--display); font-weight: 700; font-size: 3.4rem; line-height: 1; color: var(--graphite); }
+  .posbox .pos em { font-style: italic; font-weight: 500; font-size: 0.42em; color: var(--gold-deep); margin-left: 6px; }
+  .posbox .pts { margin: 0; font-family: var(--pixel); font-size: 0.9rem; }
+  .posbox .sub { margin: 6px 0 0; font-size: 0.82rem; color: var(--soft); }
   .rstatus:empty { display: none; }
   .rank tr.gap td { text-align: center; color: var(--soft); border-bottom: 0; padding: 2px; }
   .medal { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--gold); margin-left: 6px; vertical-align: 0.05em; }
@@ -107,7 +111,6 @@
 <body>
 
 <div class="game" id="game">
-  <div class="toast" id="toast" role="status" hidden></div>
   <canvas id="cv" aria-label="Área do jogo"></canvas>
   <button class="hudbtn" id="btnExit" type="button" hidden>✕ SAIR</button>
 
@@ -158,8 +161,7 @@
       <p class="score" id="endScore">0</p>
       <p class="note" id="endBest"></p>
       <div>
-        <div class="rtabs"><button type="button" class="rtab on" data-tab="ouro">Ranking de Ouro</button><button type="button" class="rtab" data-tab="dedicacao">Dedicação</button></div>
-        <table class="rank" id="endRank"></table>
+        <div class="posbox" id="endRank"></div>
         <p class="note rstatus" id="endRankStatus"></p>
       </div>
       <p class="note rexplain"></p>
@@ -167,7 +169,6 @@
         <button class="btn ghost" id="btnAgain" type="button">Jogar de novo</button>
         <button class="btn" id="btnNext" type="button">Próxima fase</button>
       </div>
-      <button class="btn gold" id="btnShareEnd" type="button">Compartilhar meu ranking</button>
       <button class="link" id="btnEndMenu" type="button">Voltar às fases</button>
     </div>
   </div>
@@ -177,12 +178,10 @@
     <div class="sheet">
       <p class="kicker">Os três primeiros ganham prêmio</p>
       <h2 class="title" style="font-size:clamp(1.8rem,8vw,2.4rem)">Ranking <em>geral</em></h2>
-      <div class="rtabs"><button type="button" class="rtab on" data-tab="ouro">Ranking de Ouro</button><button type="button" class="rtab" data-tab="dedicacao">Dedicação</button></div>
-      <table class="rank" id="menuRank"></table>
+      <div class="posbox" id="menuRank"></div>
       <p class="note rstatus" id="menuRankStatus"></p>
       <p class="note rexplain"></p>
-      <button class="btn gold" id="btnShareRank" type="button">Compartilhar meu ranking</button>
-      <button class="btn ghost" id="btnRankBack" type="button">Voltar</button>
+      <button class="btn" id="btnRankBack" type="button">Voltar</button>
     </div>
   </div>
 </div>
@@ -365,28 +364,19 @@
   }
   function refreshRanks() { renderRank($("endRank"), $("endRankStatus")); renderRank($("menuRank"), $("menuRankStatus")); }
   function renderRank(el, status) {
-    document.querySelectorAll(".rtab").forEach((b) => b.classList.toggle("on", b.dataset.tab === rankTab));
-    document.querySelectorAll(".rexplain").forEach((p) => p.textContent = EXPLAIN[rankTab]);
+    document.querySelectorAll(".rexplain").forEach((p) => p.textContent = "Ranking de Ouro: soma do seu melhor resultado em cada uma das cinco fases. Os três primeiros ganham prêmio na festa.");
     el.textContent = "";
     const msgs = { loading: "Consultando o Oráculo…", erro: "Não foi possível falar com o Olimpo agora. Seus pontos ficam guardados e entram no ranking assim que a conexão voltar.", pendente: "Alguns pontos ainda estão a caminho do Olimpo. Eles entram no ranking quando a conexão voltar." };
     status.textContent = msgs[rankState] || "";
     if (!rankData) return;
-    const rows = rankData[rankTab] || [];
-    if (!rows.length) { status.textContent = status.textContent || "Ninguém pontuou ainda. Seja o primeiro deus do ranking!"; return; }
-    const head = el.insertRow(); head.innerHTML = '<th>#</th><th>Nome</th><th class="n">Pontos</th>';
-    const eu = rankData.eu, myName = player ? player.name : "", myPos = eu ? (rankTab === "ouro" ? eu.posOuro : eu.posDedicacao) : 0;
-    const top = H < 760 ? 5 : 8;
-    const addRow = (pos, name, pts, me) => {
-      const tr = el.insertRow(); if (me) tr.className = "me";
-      const p = tr.insertCell(); p.className = "p"; p.textContent = pos;
-      const n = tr.insertCell(); n.textContent = name + (me ? " (você)" : ""); if (pos <= 3) { const m = document.createElement("span"); m.className = "medal"; m.title = "Zona de prêmio"; n.appendChild(m); }
-      const s = tr.insertCell(); s.className = "n"; s.textContent = pts;
-    };
-    rows.slice(0, top).forEach((r) => addRow(r.pos, r.nome, r.pontos, r.pos === myPos));
-    if (eu && myPos > top) { const g = el.insertRow(); g.className = "gap"; const c = g.insertCell(); c.colSpan = 3; c.textContent = "⋮"; addRow(myPos, eu.nome || myName, rankTab === "ouro" ? eu.ouro : eu.dedicacao, true); }
+    const eu = rankData.eu;
+    if (!eu || !eu.posOuro) { status.textContent = status.textContent || "Você ainda não está no ranking. Jogue uma fase para entrar no Olimpo!"; return; }
+    const add = (tag, cls, txt) => { const e = document.createElement(tag); e.className = cls; e.textContent = txt; el.appendChild(e); return e; };
+    add("p", "lbl", "Você está em");
+    const pos = add("p", "pos", eu.posOuro + "º"); const em = document.createElement("em"); em.textContent = "lugar"; pos.appendChild(em);
+    add("p", "pts", eu.ouro + " pontos no Ranking de Ouro");
+    if (eu.posDedicacao) add("p", "sub", "Na Dedicação (soma de todas as partidas), você está em " + eu.posDedicacao + "º lugar.");
   }
-  document.querySelectorAll(".rtab").forEach((b) => b.addEventListener("click", () => { rankTab = b.dataset.tab; refreshRanks(); }));
-
   // ================= fases =================
   const ROMAN = ["I", "II", "III", "IV", "V"];
   const PHASES = [];
@@ -1071,89 +1061,6 @@
   $("btnExit").addEventListener("click", () => { clearTimeout(endTimer); running = false; ending = false; renderMenu(); drawIdle(); });
 
 
-  // ================= compartilhar ranking (imagem para story) =================
-  const IG = "@9mmcomunicacao";
-  function toast(html, ms) { const t = $("toast"); t.innerHTML = html; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, ms || 5000); }
-  function goldMask(img, w, h) {
-    const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d");
-    x.drawImage(img, 0, 0, w, h); x.globalCompositeOperation = "source-in"; x.fillStyle = x.createPattern(goldTex, "repeat"); x.fillRect(0, 0, w, h);
-    return c;
-  }
-  function ordinal(n) { return n + "º"; }
-  async function buildShareImage() {
-    if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    const Wc = 1080, Hc = 1920, c = document.createElement("canvas"); c.width = Wc; c.height = Hc; const x = c.getContext("2d");
-    x.fillStyle = x.createPattern(paperTex, "repeat"); x.fillRect(0, 0, Wc, Hc);
-    // raios e sol
-    const cx = Wc / 2, cy = 610, r = 330;
-    x.strokeStyle = "rgba(156,122,54,0.35)"; x.lineWidth = 2; x.beginPath();
-    for (let i = 0; i < 96; i++) { const a = (i / 96) * Math.PI * 2, r2 = r * (i % 2 ? 1.3 : 1.55); x.moveTo(cx + Math.cos(a) * r * 1.06, cy + Math.sin(a) * r * 1.06); x.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); }
-    x.stroke();
-    x.globalAlpha = 0.9; x.fillStyle = x.createPattern(goldTex, "repeat"); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); x.globalAlpha = 1;
-    // capa (logo do Olimpo) sobre o sol
-    const cover = document.querySelector(".cover");
-    if (cover && cover.naturalWidth) {
-      const cw = 430, ch = cw * cover.naturalHeight / cover.naturalWidth;
-      x.save(); x.beginPath(); x.roundRect ? x.roundRect(cx - cw / 2 - 18, cy - ch / 2 - 18, cw + 36, ch + 36, 8) : x.rect(cx - cw / 2 - 18, cy - ch / 2 - 18, cw + 36, ch + 36);
-      x.fillStyle = "#FBF9F4"; x.fill(); x.lineWidth = 2; x.strokeStyle = C.ink; x.stroke(); x.restore();
-      x.drawImage(cover, cx - cw / 2, cy - ch / 2, cw, ch);
-    }
-    // dados
-    const eu = rankData && rankData.eu, top = (rankData && rankData.ouro) || [];
-    const name = (player && player.name ? player.name.split(" ")[0] : "Eu");
-    x.textAlign = "center"; x.textBaseline = "alphabetic"; x.fillStyle = C.ink;
-    let y = 1080;
-    if (eu && eu.posOuro) {
-      x.font = `500 52px ${FD}`; x.fillText(name + " está em", cx, y);
-      x.font = `700 220px ${FD}`; x.fillText(ordinal(eu.posOuro), cx, y + 210);
-      x.font = `italic 500 56px ${FD}`; x.fillStyle = C.goldDeep; x.fillText("lugar no Olimpo", cx, y + 285);
-      x.fillStyle = C.ink; x.font = `700 40px ${FP}`; x.fillText(eu.ouro + " PONTOS", cx, y + 355);
-    } else {
-      x.font = `500 52px ${FD}`; x.fillText(name + " fez", cx, y);
-      x.font = `700 200px ${FP}`; x.fillText(String(G.score), cx, y + 200);
-      x.font = `italic 500 56px ${FD}`; x.fillStyle = C.goldDeep; x.fillText("pontos no Olimpo", cx, y + 280);
-    }
-    // top 3
-    if (top.length) {
-      y = 1570; x.strokeStyle = C.ink; x.lineWidth = 2; x.beginPath(); x.moveTo(200, y - 50); x.lineTo(880, y - 50); x.stroke();
-      x.fillStyle = C.soft; x.font = `600 26px ${FU}`; x.fillText("TOP 3 DO OLIMPO", cx, y - 68);
-      top.slice(0, 3).forEach((t, i) => {
-        const yy = y + i * 62; x.textAlign = "left"; x.fillStyle = C.goldDeep; x.font = `700 40px ${FD}`; x.fillText(ordinal(t.pos), 230, yy);
-        x.fillStyle = C.ink; x.font = `500 38px ${FD}`; let nm = t.nome; while (x.measureText(nm).width > 470 && nm.length > 3) nm = nm.slice(0, -2); x.fillText(nm === t.nome ? nm : nm + "…", 320, yy);
-        x.textAlign = "right"; x.font = `700 32px ${FP}`; x.fillText(t.pontos, 850, yy);
-      });
-      x.textAlign = "center";
-    }
-    // rodapé: logo 9mm dourado + @
-    if (logoImg.naturalWidth) { const lw = 150, lh = lw * logoImg.naturalHeight / logoImg.naturalWidth; x.drawImage(goldMask(logoImg, lw, lh), cx - lw / 2, 1830 - lh); }
-    x.fillStyle = C.ink; x.font = `600 30px ${FU}`; x.fillText(IG, cx, 1870);
-    // título no topo
-    x.font = `700 34px ${FP}`; x.fillText("SUBI NO RANKING DO OLIMPO", cx, 150);
-    x.font = `600 26px ${FU}`; x.fillStyle = C.soft; x.fillText("FESTA DE FIM DE ANO 9MM", cx, 200);
-    return new Promise((res) => c.toBlob(res, "image/png"));
-  }
-  async function shareRank() {
-    const btns = [$("btnShareEnd"), $("btnShareRank")]; btns.forEach((b) => b.disabled = true);
-    try {
-      if (!rankData && player) { try { await fetchRank(); } catch (e) {} }
-      const blob = await buildShareImage();
-      const file = new File([blob], "olimpo-9mm-ranking.png", { type: "image/png" });
-      const text = "Subi no ranking do Olimpo 9mm! " + IG;
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        toast("Não esquece de marcar a <b>" + IG + "</b> no story! 🪽", 7000);
-        await navigator.share({ files: [file], text });
-      } else {
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "olimpo-9mm-ranking.png"; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-        toast("Imagem salva! Posta no story e não esquece de marcar a <b>" + IG + "</b> 🪽", 7000);
-      }
-    } catch (e) {
-      if (e && e.name !== "AbortError") toast("Não deu para gerar a imagem agora. Tenta de novo em instantes.", 5000);
-    } finally { btns.forEach((b) => b.disabled = false); }
-  }
-  $("btnShareEnd").addEventListener("click", shareRank);
-  $("btnShareRank").addEventListener("click", shareRank);
-  window.__buildShareImage = buildShareImage;
   resize();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!running) drawIdle(); });
   if (player) { renderMenu(); flushQueue().catch(() => {}); } else show("scrLogin");
