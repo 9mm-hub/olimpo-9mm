@@ -364,7 +364,7 @@
   }
   function refreshRanks() { renderRank($("endRank"), $("endRankStatus")); renderRank($("menuRank"), $("menuRankStatus")); }
   function renderRank(el, status) {
-    document.querySelectorAll(".rexplain").forEach((p) => p.textContent = "Ranking de Ouro: soma do seu melhor resultado em cada uma das cinco fases. Os três primeiros ganham prêmio na festa.");
+    document.querySelectorAll(".rexplain").forEach((p) => p.textContent = "Ranking geral: soma do seu melhor resultado em cada uma das cinco fases. Os três primeiros ganham prêmio na festa.");
     el.textContent = "";
     const msgs = { loading: "Consultando o Oráculo…", erro: "Não foi possível falar com o Olimpo agora. Seus pontos ficam guardados e entram no ranking assim que a conexão voltar.", pendente: "Alguns pontos ainda estão a caminho do Olimpo. Eles entram no ranking quando a conexão voltar." };
     status.textContent = msgs[rankState] || "";
@@ -374,8 +374,7 @@
     const add = (tag, cls, txt) => { const e = document.createElement(tag); e.className = cls; e.textContent = txt; el.appendChild(e); return e; };
     add("p", "lbl", "Você está em");
     const pos = add("p", "pos", eu.posOuro + "º"); const em = document.createElement("em"); em.textContent = "lugar"; pos.appendChild(em);
-    add("p", "pts", eu.ouro + " pontos no Ranking de Ouro");
-    if (eu.posDedicacao) add("p", "sub", "Na Dedicação (soma de todas as partidas), você está em " + eu.posDedicacao + "º lugar.");
+    add("p", "pts", eu.ouro + " pontos no ranking geral");
   }
   // ================= fases =================
   const ROMAN = ["I", "II", "III", "IV", "V"];
